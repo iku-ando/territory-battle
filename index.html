@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Territory Battle</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#2a2a2a;color:#f0f0f0;font-family:sans-serif;padding:20px;display:flex;flex-direction:column;align-items:center;}
+h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;letter-spacing:2px;}
+
+/* SETUP */
+#setup{background:#3a3a3a;border:2px solid #555;padding:24px;width:100%;max-width:600px;margin-bottom:20px;}
+.setup-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}
+.team-box{background:#444;border:2px solid #555;padding:12px;}
+.team-box label{display:block;font-size:12px;margin-bottom:6px;font-weight:bold;}
+.team-box input{width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;}
+.btn-main{font-family:'Press Start 2P',monospace;font-size:10px;background:#f0f0f0;color:#2a2a2a;border:none;padding:12px 24px;cursor:pointer;}
+.btn-main:hover{background:#fff;}
+
+/* GAME */
+#game{display:none;width:100%;max-width:1060px;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.sc{background:#3a3a3a;border:2px solid #555;padding:10px;}
+.sc.active{border-color:#fff;}
+.sc-name{font-size:11px;color:#aaa;margin-bottom:6px;}
+.sc-pts{font-size:20px;font-weight:bold;margin-bottom:4px;}
+.sc-row{font-size:11px;color:#aaa;display:flex;justify-content:space-between;margin-top:2px;}
+.sc-row span:last-child{color:#f0f0f0;}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.turn-box{font-family:'Press Start 2P',monospace;font-size:8px;padding:8px 12px;border:2px solid #fff;background:#3a3a3a;}
+.btn-sm{font-family:'Press Start 2P',monospace;font-size:7px;background:transparent;color:#aaa;border:2px solid #555;padding:6px 10px;cursor:pointer;}
+.btn-sm:hover{border-color:#aaa;color:#f0f0f0;}
+#msg{font-size:12px;color:#aaa;padding:4px 8px;}
+
+/* BOARD */
+.board-wrap{background:#3a3a3a;border:2px solid #555;padding:10px;overflow-x:auto;}
+.board{display:grid;grid-template-columns:repeat(15,56px);gap:3px;width:fit-content;}
+.cell{width:56px;height:56px;cursor:pointer;position:relative;}
+.cell:hover{filter:brightness(1.3);}
+.cell-inner{width:100%;height:100%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:1px;padding:2px;}
+.px{border-radius:0;}
+.cell.empty .px{background:#555;}
+.cell.t0 .px{background:#cc2244;}
+.cell.t0 .px:nth-child(1),.cell.t0 .px:nth-child(5),.cell.t0 .px:nth-child(9){background:#ff4466;}
+.cell.t0 .px:nth-child(3),.cell.t0 .px:nth-child(7){background:#ff6688;}
+.cell.t1 .px{background:#2277cc;}
+.cell.t1 .px:nth-child(1),.cell.t1 .px:nth-child(5),.cell.t1 .px:nth-child(9){background:#44aaff;}
+.cell.t1 .px:nth-child(3),.cell.t1 .px:nth-child(7){background:#66ccff;}
+.cell.t2 .px{background:#22cc55;}
+.cell.t2 .px:nth-child(1),.cell.t2 .px:nth-child(5),.cell.t2 .px:nth-child(9){background:#44ff88;}
+.cell.t2 .px:nth-child(3),.cell.t2 .px:nth-child(7){background:#66ffaa;}
+.cell.t3 .px{background:#cc9900;}
+.cell.t3 .px:nth-child(1),.cell.t3 .px:nth-child(5),.cell.t3 .px:nth-child(9){background:#ffcc22;}
+.cell.t3 .px:nth-child(3),.cell.t3 .px:nth-child(7){background:#ffdd66;}
+.cell.bonus::after{content:'3';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P',monospace;font-size:11px;pointer-events:none;z-index:2;}
+.cell.empty.bonus .px{background:#bbb;}
+.cell.empty.bonus .px:nth-child(1),.cell.empty.bonus .px:nth-child(5),.cell.empty.bonus .px:nth-child(9){background:#fff;}
+.cell.empty.bonus .px:nth-child(3),.cell.empty.bonus .px:nth-child(7){background:#ddd;}
+.cell.empty.bonus::after{color:#333;}
+.cell.t0.bonus::after,.cell.t1.bonus::after,.cell.t2.bonus::after,.cell.t3.bonus::after{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.9);}
+.cell.adjacent-hint{outline:1px dashed rgba(255,255,255,0.25);outline-offset:-2px;}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#aaa;align-items:center;}
+.lg{display:flex;align-items:center;gap:5px;}
+.lbox{width:14px;height:14px;}
+.note{font-size:11px;color:#888;margin-top:6px;line-height:1.8;}
+
+/* OVERLAY共通 */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;}
+.overlay.show{display:flex;}
+.obox{background:#3a3a3a;border:2px solid #555;padding:32px;max-width:400px;width:90%;text-align:center;}
+.otitle{font-family:'Press Start 2P',monospace;font-size:11px;margin-bottom:16px;line-height:1.8;}
+.obody{font-size:13px;color:#aaa;line-height:2;margin-bottom:20px;}
+.obody strong{color:#f0f0f0;}
+.opts{font-family:'Press Start 2P',monospace;font-size:20px;margin-bottom:20px;}
+.orow{display:flex;gap:12px;justify-content:center;}
+</style>
+</head>
+<body>
+<h1>TERRITORY BATTLE</h1>
+
+<!-- SETUP -->
+<div id="setup">
+  <p style="font-size:13px;margin-bottom:16px;color:#aaa;">メンバー数を入力してスタート（6〜9名）</p>
+  <div class="setup-grid">
+    <div class="team-box"><label style="color:#ff4466;">TEAM A（左上）</label><input type="number" id="m0" min="6" max="9" value="6"></div>
+    <div class="team-box"><label style="color:#44aaff;">TEAM B（右上）</label><input type="number" id="m1" min="6" max="9" value="8"></div>
+    <div class="team-box"><label style="color:#44ff88;">TEAM C（左下）</label><input type="number" id="m2" min="6" max="9" value="7"></div>
+    <div class="team-box"><label style="color:#ffcc22;">TEAM D（右下）</label><input type="number" id="m3" min="6" max="9" value="9"></div>
+  </div>
+  <div style="margin-bottom:16px;">
+    <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">ゲーム開始日</label>
+    <input type="date" id="gameStartDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
+    <p style="font-size:11px;color:#666;margin-top:4px;">発話量の集計開始日（例：2025-04-01）</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <button class="btn-main" id="startBtn">▶ START GAME</button>
+    <button class="btn-sm" id="resumeBtn" style="display:none;">↩ 続きから再開</button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game">
+  <div class="stats" id="stats"></div>
+  <div class="controls">
+    <div class="turn-box" id="turnbox"></div>
+    <button class="btn-sm" id="addptBtn">＋ PT</button>
+    <button class="btn-sm" id="nextBtn">NEXT TURN ▶</button>
+    <button class="btn-sm" id="resetBtn">↺ RESET</button>
+    <div id="msg"></div>
+  </div>
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+  <div class="legend">
+    <div class="lg"><div class="lbox" style="background:#ff4466;"></div>Team A</div>
+    <div class="lg"><div class="lbox" style="background:#44aaff;"></div>Team B</div>
+    <div class="lg"><div class="lbox" style="background:#44ff88;"></div>Team C</div>
+    <div class="lg"><div class="lbox" style="background:#ffcc22;"></div>Team D</div>
+    <div class="lg"><div class="lbox" style="background:#555;"></div>空白</div>
+    <div class="lg"><div class="lbox" style="background:#fff;border:1px solid #aaa;display:flex;align-items:center;justify-content:center;font-size:8px;color:#333;font-weight:bold;">5</div>ボーナス</div>
+  </div>
+  <div class="note">空白: 1pt ｜ 敵陣: 2pt（1ptで空白化も可） ｜ 隣接マスのみ</div>
+</div>
+
+<!-- 確認ポップアップ -->
+<div class="overlay" id="confirmOv">
+  <div class="obox">
+    <div class="otitle" id="confTitle"></div>
+    <div class="obody" id="confBody"></div>
+    <div class="orow">
+      <button class="btn-main" id="confOk">確定 ▶</button>
+      <button class="btn-sm" id="confCancel" style="padding:10px 16px;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ターンポップアップ -->
+<div class="overlay" id="turnOv">
+  <div class="obox">
+    <div class="otitle" id="turnTitle"></div>
+    <div class="obody" id="turnBody"></div>
+    <div class="opts" id="turnPts"></div>
+    <button class="btn-main" id="turnOk">OK ▶</button>
+  </div>
+</div>
+
+<!-- pt=0ポップアップ -->
+<div class="overlay" id="zeroOv">
+  <div class="obox">
+    <div class="otitle" id="zeroTitle"></div>
+    <div class="obody" id="zeroBody"></div>
+    <button class="btn-main" id="zeroOk">次のターンへ ▶</button>
+  </div>
+</div>
+
+<script>
+const COLS=15,ROWS=10;
+const TNAME=['TEAM A','TEAM B','TEAM C','TEAM D'];
+const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
+const PT_PER=100; // 100分で1pt
+const API_BASE='/api/stats';
+const GROUP_IDS=['group1','group2','group3','group4'];
+// 1週間の会話量を540〜840分（9〜14時間）でランダム生成（APIフォールバック用）
+function randTalk(){ return Math.floor(Math.random()*(840-540+1))+540; }
+
+// APIから発話量（分）を取得
+async function fetchTalkMinutes(groupIdx, startDate, endDate){
+  try {
+    const params=new URLSearchParams({group_id:GROUP_IDS[groupIdx], start:startDate, end:endDate});
+    const res=await fetch(`${API_BASE}?${params}`);
+    const json=await res.json();
+    if(!json.success) return null;
+    const seconds=json.data.total_seconds||0;
+    return Math.floor(seconds/60);
+  } catch(e){ return null; }
+}
+const BONUS_POS=[[2,3],[3,2],[2,11],[3,12],[7,3],[6,2],[7,11],[6,12]];
+
+let G={};
+
+function initG(members, startDate){
+  G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
+  G.teams=members.map((m,i)=>({
+    name:TNAME[i],
+    pts:0,
+    members:m,
+    talk:0,
+    carry:0,
+    turnStart:startDate, // 各チームのターン開始日（最初は全チームgameStart）
+  }));
+  G.cur=0;
+  G.pending=null;
+  G.bonus={};
+  G.lastDate=today();
+  G.gameStart=startDate;
+  G.debugDate=startDate; // デバッグ用仮想日付
+  fillCorners();
+  BONUS_POS.forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
+}
+
+// 仮想日付を1日進める
+function advanceDebugDate(){
+  const d=new Date(G.debugDate);
+  d.setDate(d.getDate()+1);
+  G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+}
+
+function today(){
+  const d=new Date();
+  return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+}
+
+function fillCorners(){
+  const cfg=[(r,c)=>({r,c}),(r,c)=>({r,c:COLS-1-c}),(r,c)=>({r:ROWS-1-r,c}),(r,c)=>({r:ROWS-1-r,c:COLS-1-c})];
+  for(let i=0;i<4;i++){
+    let filled=0;
+    for(let layer=0;filled<G.teams[i].members;layer++){
+      for(let j=0;j<=layer&&filled<G.teams[i].members;j++){
+        const {r,c}=cfg[i](j,layer-j);
+        if(r>=0&&r<ROWS&&c>=0&&c<COLS&&G.board[r][c]===-1){G.board[r][c]=i;filled++;}
+      }
+    }
+  }
+}
+
+function save(){try{localStorage.setItem('tb3',JSON.stringify(G));}catch(e){}}
+function load(){try{const r=localStorage.getItem('tb3');return r?JSON.parse(r):null;}catch(e){return null;}}
+
+function isAdjacent(r,c){
+  for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]===G.cur)return true;
+  }
+  return false;
+}
+
+function adjacentSet(){
+  const s=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(G.board[r][c]===G.cur){
+      for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]!==G.cur)s.add(nr*COLS+nc);
+      }
+    }
+  }
+  return s;
+}
+
+// --- 確認ポップアップ ---
+function showConfirm(title, body, onOk, showCancel){
+  document.getElementById('confTitle').style.color='';
+  document.getElementById('confTitle').textContent=title;
+  document.getElementById('confBody').innerHTML=body;
+  document.getElementById('confCancel').style.display=showCancel===false?'none':'';
+  document.getElementById('confirmOv').classList.add('show');
+  document.getElementById('confOk').onclick=()=>{
+    document.getElementById('confirmOv').classList.remove('show');
+    onOk();
+    if(G.teams[G.cur].pts<=0) setTimeout(showZeroPopup,200);
+  };
+  document.getElementById('confCancel').onclick=()=>{
+    document.getElementById('confirmOv').classList.remove('show');
+    setMsg('キャンセルした');
+  };
+}
+
+// --- pt=0通知 ---
+function showZeroPopup(){
+  const i=G.cur;
+  document.getElementById('zeroTitle').style.color=TCOL[i];
+  document.getElementById('zeroTitle').textContent='ポイントがなくなりました！';
+  document.getElementById('zeroBody').innerHTML=
+    TNAME[i]+' のポイントが <strong>0</strong> になりました。<br>次のチームのターンに移ります。';
+  document.getElementById('zeroOv').classList.add('show');
+}
+
+document.getElementById('zeroOk').addEventListener('click',()=>{
+  document.getElementById('zeroOv').classList.remove('show');
+  G.teams[G.cur].pts=0; // 念のためリセット
+  G.pending=null;
+  G.cur=(G.cur+1)%4;
+  G.lastDate=today();
+  save();
+  showTurnPopup(false);
+});
+
+// --- ターンポップアップ ---
+async function showTurnPopup(isAuto){
+  const i=G.cur;
+  const t=G.teams[i];
+
+  // ローディング表示
+  document.getElementById('turnTitle').style.color=TCOL[i];
+  document.getElementById('turnTitle').textContent=(isAuto?'【自動切替】':'')+TNAME[i]+' のターン';
+  document.getElementById('turnBody').innerHTML='⏳ 発話量を取得中...';
+  document.getElementById('turnPts').textContent='';
+  document.getElementById('turnOv').classList.add('show');
+
+  // ターン期間：このチームのturnStart〜仮想日付（デバッグ）or 今日（本番）
+  const startDate=t.turnStart||G.gameStart;
+  const endDate=G.debugDate||today();
+
+  // API取得（失敗時はランダムフォールバック）
+  let apiMinutes=await fetchTalkMinutes(i, startDate, endDate);
+  const usingDummy=apiMinutes===null;
+  if(usingDummy) apiMinutes=randTalk();
+
+  const total=apiMinutes+(t.carry||0);
+  const talkGain=Math.floor(total/PT_PER);
+  const newCarry=total%PT_PER;
+
+  t.talk+=apiMinutes;
+  t.carry=newCarry;
+  t.pts+=talkGain;
+
+  // 仮想日付を1日進める（デバッグ）
+  advanceDebugDate();
+
+  // 次チームのturnStartを更新（今の仮想日付 = 翌日）
+  const nextTeam=(i+1)%4;
+  // 次チームはすでにgameStartからなのでそのまま
+  // 今のチームは次回ターン時のturnStartを更新
+  t.turnStart=G.debugDate; // 翌日以降が次回のこのチームのturnStart
+  save();
+
+  document.getElementById('turnBody').innerHTML=
+    '<span style="color:#888;font-size:11px;">仮想日付: '+endDate+'</span>'
+    +'<br>期間: <strong>'+startDate+'</strong> 〜 <strong>'+endDate+'</strong>'
+    +(usingDummy?'<br><span style="color:#888">（ダミーデータ使用）</span>':'')
+    +'<br>発話量: <strong>'+apiMinutes.toLocaleString()+'分</strong>'
+    +((total-apiMinutes)>0?'<br>持ち越し: <strong>'+(total-apiMinutes)+'分</strong> → 合計 <strong>'+total+'分</strong>':'')
+    +'<br>獲得pt: <strong>'+talkGain+'pt</strong>'
+    +'<br>次回持ち越し: <strong>'+newCarry+'分</strong>';
+  document.getElementById('turnPts').style.color=TCOL[i];
+  document.getElementById('turnPts').textContent='+'+talkGain+' PT 付与！';
+  render();
+}
+
+document.getElementById('turnOk').addEventListener('click',()=>{
+  document.getElementById('turnOv').classList.remove('show');
+});
+
+// --- マスクリック ---
+function clickCell(r,c){
+  const own=G.board[r][c];
+  if(own===G.cur){setMsg('自分の陣地！');return;}
+  if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
+  const empty=own===-1;
+  const isBonus=G.bonus.hasOwnProperty(r+','+c);
+  const cost=empty?1:2;
+
+  if(G.teams[G.cur].pts<cost){
+    if(!empty&&G.teams[G.cur].pts>=1){
+      showConfirm('空白化する？',
+        TNAME[G.cur]+' → 空白<br>消費: <strong>1 PT</strong>',
+        ()=>{G.board[r][c]=-1;G.teams[G.cur].pts--;G.pending=null;setMsg('空白化（1pt消費）');save();render();});
+    } else {
+      setMsg('ポイント不足（必要'+cost+'pt）');
+    }
+    return;
+  }
+
+  const targetLabel=empty?(isBonus?'ボーナスマス':'空白マス'):TNAME[own]+'の陣地';
+  const bonusNote=isBonus?'<br><span style="color:#ffcc22">★ボーナス +3PT獲得！</span>':'';
+  showConfirm(
+    targetLabel+'を取得？',
+    '消費: <strong>'+cost+' PT</strong>'+bonusNote,
+    ()=>{
+      G.board[r][c]=G.cur;
+      G.teams[G.cur].pts-=cost;
+      G.pending=null;
+      if(isBonus){G.bonus[r+','+c]=G.cur;G.teams[G.cur].pts+=3;setMsg('★ボーナス！3PT獲得（'+cost+'pt消費）');}
+      else setMsg('取得！（'+cost+'pt消費）');
+      save();render();
+    }
+  );
+}
+
+function setMsg(t){document.getElementById('msg').textContent=t;}
+function countTiles(i){return G.board.flat().filter(v=>v===i).length;}
+
+function render(){
+  document.getElementById('stats').innerHTML=G.teams.map((t,i)=>`
+    <div class="sc${i===G.cur?' active':''}">
+      <div class="sc-name">${t.name}</div>
+      <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
+      <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
+      <div class="sc-row"><span>総会話量</span><span>${t.talk.toLocaleString()}分</span></div>
+      <div class="sc-row"><span>持ち越し</span><span>${t.carry||0}分</span></div>
+    </div>`).join('');
+
+  document.getElementById('turnbox').innerHTML=
+    '<span style="display:inline-block;width:8px;height:8px;background:'+TCOL[G.cur]+';margin-right:6px;"></span>'+TNAME[G.cur]+' のターン';
+
+  const boardEl=document.getElementById('board');
+  boardEl.innerHTML='';
+  const adj=adjacentSet();
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const own=G.board[r][c];
+      const key=r+','+c;
+      const isBonus=G.bonus.hasOwnProperty(key);
+      const cell=document.createElement('div');
+      let cls='cell';
+      if(own===-1) cls+=isBonus?' empty bonus':' empty';
+      else cls+=' t'+own+(isBonus?' bonus':'');
+      if(adj.has(r*COLS+c)&&own!==G.cur) cls+=' adjacent-hint';
+      cell.className=cls;
+      const inner=document.createElement('div');
+      inner.className='cell-inner';
+      for(let k=0;k<9;k++){const p=document.createElement('div');p.className='px';inner.appendChild(p);}
+      cell.appendChild(inner);
+      cell.addEventListener('click',()=>clickCell(r,c));
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+function showGame(){
+  document.getElementById('setup').style.display='none';
+  document.getElementById('game').style.display='block';
+}
+
+// --- ボタンイベント ---
+document.getElementById('startBtn').addEventListener('click',()=>{
+  const startDate=document.getElementById('gameStartDate').value||today();
+  const members=[0,1,2,3].map(i=>Math.min(9,Math.max(6,parseInt(document.getElementById('m'+i).value)||6)));
+  localStorage.removeItem('tb3');
+  initG(members, startDate);
+  save();
+  showGame();
+  render();
+  showTurnPopup(false);
+});
+
+document.getElementById('resumeBtn').addEventListener('click',()=>{
+  const saved=load();
+  if(!saved)return;
+  G=saved;
+  G.bonus=G.bonus||{};
+  showGame();
+  render();
+});
+
+document.getElementById('addptBtn').addEventListener('click',()=>{G.teams[G.cur].pts++;save();render();});
+
+document.getElementById('nextBtn').addEventListener('click',()=>{
+  G.teams[G.cur].pts=0; // 未使用pt没収
+  G.pending=null;
+  G.cur=(G.cur+1)%4;
+  G.lastDate=today();
+  save();
+  showTurnPopup(false);
+});
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  if(!confirm('リセットしますか？'))return;
+  localStorage.removeItem('tb3');
+  G={};
+  document.getElementById('game').style.display='none';
+  document.getElementById('setup').style.display='block';
+  document.getElementById('resumeBtn').style.display='none';
+});
+
+// --- 起動時 ---
+document.getElementById('setup').style.display='block';
+document.getElementById('game').style.display='none';
+const _saved=load();
+if(_saved&&_saved.board&&_saved.teams){
+  document.getElementById('resumeBtn').style.display='inline-block';
+}
+
+setInterval(()=>{
+  if(G.board&&G.board.length){
+    const now=new Date();
+    const t=today();
+    if(now.getHours()>=9&&G.lastDate!==t){
+      // 前チームの未使用ptを没収
+      G.teams[G.cur].pts=0;
+      G.pending=null;
+      G.cur=(G.cur+1)%4;
+      G.lastDate=t;
+      save();
+      render();showTurnPopup(true);
+    }
+  }
+},60000);
+</script>
+</body>
+</html>
