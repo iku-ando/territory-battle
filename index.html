@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -197,10 +198,13 @@ function initG(members, startDate){
   BONUS_POS.forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
 }
 
-// 仮想日付を1日進める
+// 仮想日付を次の平日に進める
 function advanceDebugDate(){
   const d=new Date(G.debugDate);
   d.setDate(d.getDate()+1);
+  // 土曜(6)なら月曜へ+2、日曜(0)なら月曜へ+1
+  if(d.getDay()===6) d.setDate(d.getDate()+2);
+  else if(d.getDay()===0) d.setDate(d.getDate()+1);
   G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
@@ -300,10 +304,14 @@ async function showTurnPopup(isAuto){
   const startDate=t.turnStart||G.gameStart;
   const endDate=G.debugDate||today();
 
-  // API取得（失敗時はランダムフォールバック）
+  // API取得（失敗時はエラー表示・pt付与なし）
   let apiMinutes=await fetchTalkMinutes(i, startDate, endDate);
-  const usingDummy=apiMinutes===null;
-  if(usingDummy) apiMinutes=randTalk();
+  if(apiMinutes===null){
+    document.getElementById('turnBody').innerHTML=
+      '<span style="color:#ff4466">❌ データ取得に失敗しました。<br>通信状況を確認してください。</span>';
+    document.getElementById('turnPts').textContent='';
+    return;
+  }
 
   const total=apiMinutes+(t.carry||0);
   const talkGain=Math.floor(total/PT_PER);
@@ -326,7 +334,6 @@ async function showTurnPopup(isAuto){
   document.getElementById('turnBody').innerHTML=
     '<span style="color:#888;font-size:11px;">仮想日付: '+endDate+'</span>'
     +'<br>期間: <strong>'+startDate+'</strong> 〜 <strong>'+endDate+'</strong>'
-    +(usingDummy?'<br><span style="color:#888">（ダミーデータ使用）</span>':'')
     +'<br>発話量: <strong>'+apiMinutes.toLocaleString()+'分</strong>'
     +((total-apiMinutes)>0?'<br>持ち越し: <strong>'+(total-apiMinutes)+'分</strong> → 合計 <strong>'+total+'分</strong>':'')
     +'<br>獲得pt: <strong>'+talkGain+'pt</strong>'
