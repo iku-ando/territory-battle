@@ -1,8 +1,7 @@
-
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
+<!-- saved from url=(0045)file:///Users/ikuando/Downloads/index_19.html -->
+<html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <title>Territory Battle</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -81,7 +80,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 <h1>TERRITORY BATTLE</h1>
 
 <!-- SETUP -->
-<div id="setup">
+<div id="setup" style="display: block;">
   <p style="font-size:13px;margin-bottom:16px;color:#aaa;">メンバー数を入力してスタート（6〜9名）</p>
   <div class="setup-grid">
     <div class="team-box"><label style="color:#ff4466;">TEAM A（左上）</label><input type="number" id="m0" min="6" max="9" value="6"></div>
@@ -94,14 +93,23 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <input type="date" id="gameStartDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
     <p style="font-size:11px;color:#666;margin-top:4px;">発話量の集計開始日（例：2025-04-01）</p>
   </div>
+  <div style="margin-bottom:20px;">
+    <p style="font-size:12px;color:#aaa;margin-bottom:10px;">各チームのパスワードを設定</p>
+    <div class="setup-grid">
+      <div class="team-box"><label style="color:#ff4466;">TEAM A パスワード</label><input type="text" id="pw0" placeholder="例: teamA2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+      <div class="team-box"><label style="color:#44aaff;">TEAM B パスワード</label><input type="text" id="pw1" placeholder="例: teamB2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+      <div class="team-box"><label style="color:#44ff88;">TEAM C パスワード</label><input type="text" id="pw2" placeholder="例: teamC2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+      <div class="team-box"><label style="color:#ffcc22;">TEAM D パスワード</label><input type="text" id="pw3" placeholder="例: teamD2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+    </div>
+  </div>
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <button class="btn-main" id="startBtn">▶ START GAME</button>
-    <button class="btn-sm" id="resumeBtn" style="display:none;">↩ 続きから再開</button>
+    <button class="btn-sm" id="resumeBtn" style="display: inline-block;">↩ 続きから再開</button>
   </div>
 </div>
 
 <!-- GAME -->
-<div id="game">
+<div id="game" style="display: none;">
   <div class="stats" id="stats"></div>
   <div class="controls">
     <div class="turn-box" id="turnbox"></div>
@@ -120,6 +128,20 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <div class="lg"><div class="lbox" style="background:#fff;border:1px solid #aaa;display:flex;align-items:center;justify-content:center;font-size:8px;color:#333;font-weight:bold;">5</div>ボーナス</div>
   </div>
   <div class="note">空白: 1pt ｜ 敵陣: 2pt（1ptで空白化も可） ｜ 隣接マスのみ</div>
+</div>
+
+<!-- ログインオーバーレイ -->
+<div class="overlay" id="loginOv">
+  <div class="obox">
+    <div class="otitle">チームコードを入力</div>
+    <div class="obody">自分のチームのコードを入力してください</div>
+    <input type="password" id="loginPw" placeholder="パスワード" style="width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:10px;margin-bottom:16px;text-align:center;">
+    <div id="loginErr" style="color:#ff4466;font-size:12px;margin-bottom:12px;display:none;">パスワードが違います</div>
+    <div class="orow">
+      <button class="btn-main" id="loginOk">ログイン ▶</button>
+      <button class="btn-sm" id="loginWatch" style="padding:10px 16px;">観戦モード</button>
+    </div>
+  </div>
 </div>
 
 <!-- 確認ポップアップ -->
@@ -177,8 +199,9 @@ async function fetchTalkMinutes(groupIdx, startDate, endDate){
 const BONUS_POS=[[2,3],[3,2],[2,11],[3,12],[7,3],[6,2],[7,11],[6,12]];
 
 let G={};
+let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
 
-function initG(members, startDate){
+function initG(members, startDate, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
   G.teams=members.map((m,i)=>({
     name:TNAME[i],
@@ -186,14 +209,15 @@ function initG(members, startDate){
     members:m,
     talk:0,
     carry:0,
-    turnStart:startDate, // 各チームのターン開始日（最初は全チームgameStart）
+    turnStart:startDate,
   }));
   G.cur=0;
   G.pending=null;
   G.bonus={};
   G.lastDate=today();
   G.gameStart=startDate;
-  G.debugDate=startDate; // デバッグ用仮想日付
+  G.debugDate=startDate;
+  G.passwords=passwords;
   fillCorners();
   BONUS_POS.forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
 }
@@ -349,6 +373,7 @@ document.getElementById('turnOk').addEventListener('click',()=>{
 
 // --- マスクリック ---
 function clickCell(r,c){
+  if(!canOperate()){showNotMyTurn();return;}
   const own=G.board[r][c];
   if(own===G.cur){setMsg('自分の陣地！');return;}
   if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
@@ -426,14 +451,30 @@ function render(){
 function showGame(){
   document.getElementById('setup').style.display='none';
   document.getElementById('game').style.display='block';
+  // ログイン画面を表示
+  document.getElementById('loginPw').value='';
+  document.getElementById('loginErr').style.display='none';
+  document.getElementById('loginOv').classList.add('show');
+}
+
+function canOperate(){
+  return myTeam===G.cur;
+}
+
+function showNotMyTurn(){
+  setMsg('⛔ 自分のチームのターンではありません');
 }
 
 // --- ボタンイベント ---
 document.getElementById('startBtn').addEventListener('click',()=>{
   const startDate=document.getElementById('gameStartDate').value||today();
   const members=[0,1,2,3].map(i=>Math.min(9,Math.max(6,parseInt(document.getElementById('m'+i).value)||6)));
+  const passwords=[0,1,2,3].map(i=>document.getElementById('pw'+i).value||'');
+  if(passwords.some(p=>p==='')){
+    alert('全チームのパスワードを設定してください');return;
+  }
   localStorage.removeItem('tb3');
-  initG(members, startDate);
+  initG(members, startDate, passwords);
   save();
   showGame();
   render();
@@ -445,19 +486,49 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   if(!saved)return;
   G=saved;
   G.bonus=G.bonus||{};
-  showGame();
+  G.passwords=G.passwords||['','','',''];
+  document.getElementById('setup').style.display='none';
+  document.getElementById('game').style.display='block';
+  document.getElementById('loginPw').value='';
+  document.getElementById('loginErr').style.display='none';
+  document.getElementById('loginOv').classList.add('show');
   render();
 });
 
-document.getElementById('addptBtn').addEventListener('click',()=>{G.teams[G.cur].pts++;save();render();});
+document.getElementById('addptBtn').addEventListener('click',()=>{
+  if(!canOperate()){showNotMyTurn();return;}
+  G.teams[G.cur].pts++;save();render();
+});
 
 document.getElementById('nextBtn').addEventListener('click',()=>{
-  G.teams[G.cur].pts=0; // 未使用pt没収
+  if(!canOperate()){showNotMyTurn();return;}
+  G.teams[G.cur].pts=0;
   G.pending=null;
   G.cur=(G.cur+1)%4;
   G.lastDate=today();
   save();
   showTurnPopup(false);
+});
+
+// ログイン処理
+document.getElementById('loginOk').addEventListener('click',()=>{
+  const pw=document.getElementById('loginPw').value;
+  const idx=G.passwords.indexOf(pw);
+  if(idx===-1){
+    document.getElementById('loginErr').style.display='block';
+    return;
+  }
+  myTeam=idx;
+  document.getElementById('loginOv').classList.remove('show');
+  setMsg('');
+  render();
+});
+
+document.getElementById('loginWatch').addEventListener('click',()=>{
+  myTeam=-1;
+  document.getElementById('loginOv').classList.remove('show');
+  setMsg('観戦モードで閲覧中');
+  render();
 });
 
 document.getElementById('resetBtn').addEventListener('click',()=>{
@@ -493,5 +564,6 @@ setInterval(()=>{
   }
 },60000);
 </script>
-</body>
-</html>
+
+
+</body></html>
