@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0045)file:///Users/ikuando/Downloads/index_19.html -->
+<!-- saved from url=(0045)file:///Users/ikuando/Downloads/index_20.html -->
 <html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <title>Territory Battle</title>
@@ -116,6 +116,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <button class="btn-sm" id="addptBtn">＋ PT</button>
     <button class="btn-sm" id="nextBtn">NEXT TURN ▶</button>
     <button class="btn-sm" id="resetBtn">↺ RESET</button>
+    <button class="btn-sm" id="reloginBtn">🔑 チーム切替</button>
     <div id="msg"></div>
   </div>
   <div class="board-wrap"><div class="board" id="board"></div></div>
@@ -250,7 +251,12 @@ function fillCorners(){
   }
 }
 
-function save(){try{localStorage.setItem('tb3',JSON.stringify(G));}catch(e){}}
+function save(){
+  try{
+    localStorage.setItem('tb3',JSON.stringify(G));
+    localStorage.setItem('tb3_myTeam', myTeam);
+  }catch(e){}
+}
 function load(){try{const r=localStorage.getItem('tb3');return r?JSON.parse(r):null;}catch(e){return null;}}
 
 function isAdjacent(r,c){
@@ -519,6 +525,7 @@ document.getElementById('loginOk').addEventListener('click',()=>{
     return;
   }
   myTeam=idx;
+  localStorage.setItem('tb3_myTeam', myTeam);
   document.getElementById('loginOv').classList.remove('show');
   setMsg('');
   render();
@@ -526,14 +533,25 @@ document.getElementById('loginOk').addEventListener('click',()=>{
 
 document.getElementById('loginWatch').addEventListener('click',()=>{
   myTeam=-1;
+  localStorage.setItem('tb3_myTeam', myTeam);
   document.getElementById('loginOv').classList.remove('show');
   setMsg('観戦モードで閲覧中');
   render();
 });
 
+document.getElementById('reloginBtn').addEventListener('click',()=>{
+  myTeam=-1;
+  localStorage.removeItem('tb3_myTeam');
+  document.getElementById('loginPw').value='';
+  document.getElementById('loginErr').style.display='none';
+  document.getElementById('loginOv').classList.add('show');
+});
+
 document.getElementById('resetBtn').addEventListener('click',()=>{
   if(!confirm('リセットしますか？'))return;
   localStorage.removeItem('tb3');
+  localStorage.removeItem('tb3_myTeam');
+  myTeam=-1;
   G={};
   document.getElementById('game').style.display='none';
   document.getElementById('setup').style.display='block';
@@ -546,6 +564,17 @@ document.getElementById('game').style.display='none';
 const _saved=load();
 if(_saved&&_saved.board&&_saved.teams){
   document.getElementById('resumeBtn').style.display='inline-block';
+  // myTeamを復元してそのままゲーム再開
+  const savedMyTeam=localStorage.getItem('tb3_myTeam');
+  if(savedMyTeam!==null){
+    myTeam=parseInt(savedMyTeam);
+    G=_saved;
+    G.bonus=G.bonus||{};
+    G.passwords=G.passwords||['','','',''];
+    document.getElementById('setup').style.display='none';
+    document.getElementById('game').style.display='block';
+    render();
+  }
 }
 
 setInterval(()=>{
