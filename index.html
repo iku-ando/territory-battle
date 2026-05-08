@@ -10,7 +10,7 @@ body{background:#06060f;color:#f0f0f0;font-family:sans-serif;padding:20px;displa
 h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;letter-spacing:2px;position:relative;z-index:1;}
 
 /* スポットライト */
-.spotlight{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(90px);will-change:transform;}
+.spotlight{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(90px);will-change:transform;transition:opacity 1.8s ease;}
 .spot-a{width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,68,102,0.42) 0%,transparent 70%);animation:spot-a 13s ease-in-out infinite;}
 .spot-b{width:45vw;height:45vw;background:radial-gradient(circle,rgba(68,170,255,0.42) 0%,transparent 70%);animation:spot-b 17s ease-in-out infinite;animation-delay:-4s;}
 .spot-c{width:48vw;height:48vw;background:radial-gradient(circle,rgba(68,255,136,0.38) 0%,transparent 70%);animation:spot-c 11s ease-in-out infinite;animation-delay:-7s;}
@@ -593,7 +593,16 @@ function makeFanSVG(team, isBonus) { return ''; }
 
 function countTiles(i){return G.board.flat().filter(v=>v===i).length;}
 
+const SPOT_IDS=['spot-a','spot-b','spot-c','spot-d'];
+function updateBgHighlight(teamIdx){
+  SPOT_IDS.forEach((cls,i)=>{
+    const el=document.querySelector('.'+cls);
+    if(el) el.style.opacity = (i===teamIdx)?'1':'0.25';
+  });
+}
+
 function render(){
+  if(G.cur!==undefined) updateBgHighlight(G.cur);
   document.getElementById('stats').innerHTML=G.teams.map((t,i)=>`
     <div class="sc${i===G.cur?' active':''}">
       <div class="sc-name">${t.name}</div>
