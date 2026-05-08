@@ -726,42 +726,40 @@ setInterval(()=>{
 },60000);
 
 // ========== SEARCHLIGHTS ==========
-const SL_RGB = [[255,68,102],[68,170,255],[68,255,136],[255,204,34]];
 let slRAF = null;
-const slights = SL_RGB.map((rgb, i) => ({
-  rgb,
-  x: (i + 0.5) / 4,
-  tx: (i + 0.5) / 4,
-  speed: 0.012 + i * 0.004,
-  nextAt: Date.now() + 600 * (i + 1),
-  coneAngle: 0.22 + i * 0.03,
-}));
 
-function drawCone(ctx, W, H, s) {
-  const px = s.x * W;
-  const oy = -2;
-  const len = H + 8;
-  const bx1 = px - Math.tan(s.coneAngle) * len;
-  const bx2 = px + Math.tan(s.coneAngle) * len;
-  const [r,g,b] = s.rgb;
-  const grad = ctx.createLinearGradient(px, oy, px, oy + len);
-  grad.addColorStop(0,   `rgba(${r},${g},${b},0.55)`);
-  grad.addColorStop(0.35,`rgba(${r},${g},${b},0.18)`);
-  grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+// 各チームの四隅を起点に、ボード内を左右に揺れるライト
+// baseAngle: ライトが向く中心方向（ラジアン、0=右）
+// swayAmp: 揺れ幅（ラジアン）
+// freq: 揺れ速度（ms⁻¹）
+const CORNER_LIGHTS = [
+  { rgb:[255,68,102],  ox:(W,H)=>[-6,-6],   baseAngle: Math.PI*0.28, swayAmp:Math.PI*0.22, freq:0.00055, phase:0             }, // A 左上→右下
+  { rgb:[68,170,255],  ox:(W,H)=>[W+6,-6],  baseAngle: Math.PI*0.72, swayAmp:Math.PI*0.22, freq:0.00065, phase:Math.PI*0.5   }, // B 右上→左下
+  { rgb:[68,255,136],  ox:(W,H)=>[-6,H+6],  baseAngle:-Math.PI*0.28, swayAmp:Math.PI*0.22, freq:0.00060, phase:Math.PI       }, // C 左下→右上
+  { rgb:[255,204,34],  ox:(W,H)=>[W+6,H+6], baseAngle:-Math.PI*0.72, swayAmp:Math.PI*0.22, freq:0.00070, phase:Math.PI*1.5   }, // D 右下→左上
+];
+
+function drawBeam(ctx, ox, oy, angle, rgb, len) {
+  const half = 0.16; // 半頂角（ラジアン）
+  const a1 = angle - half, a2 = angle + half;
+  const [r,g,b] = rgb;
+  const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, len);
+  grad.addColorStop(0,    `rgba(${r},${g},${b},0.7)`);
+  grad.addColorStop(0.45, `rgba(${r},${g},${b},0.22)`);
+  grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
-  ctx.moveTo(px, oy);
-  ctx.lineTo(bx2, oy + len);
-  ctx.lineTo(bx1, oy + len);
+  ctx.moveTo(ox, oy);
+  ctx.arc(ox, oy, len, a1, a2);
   ctx.closePath();
   ctx.fillStyle = grad;
   ctx.fill();
-  // bright dot at origin
-  const dot = ctx.createRadialGradient(px, oy, 0, px, oy, 12);
-  dot.addColorStop(0,   `rgba(${r},${g},${b},0.9)`);
-  dot.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+  // 光源グロー
+  const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 18);
+  glow.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
+  glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
-  ctx.arc(px, oy, 12, 0, Math.PI*2);
-  ctx.fillStyle = dot;
+  ctx.arc(ox, oy, 18, 0, Math.PI*2);
+  ctx.fillStyle = glow;
   ctx.fill();
 }
 
@@ -770,17 +768,15 @@ function slTick() {
   if (!canvas || canvas.width === 0) { slRAF = requestAnimationFrame(slTick); return; }
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  const now = Date.now();
+  const t = Date.now();
   ctx.clearRect(0, 0, W, H);
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
-  for (const s of slights) {
-    s.x += (s.tx - s.x) * s.speed;
-    if (Math.abs(s.tx - s.x) < 0.008 && now > s.nextAt) {
-      s.tx = 0.04 + Math.random() * 0.92;
-      s.nextAt = now + 400 + Math.random() * 1800;
-    }
-    drawCone(ctx, W, H, s);
+  const len = Math.sqrt(W*W + H*H) * 1.1;
+  for (const s of CORNER_LIGHTS) {
+    const [ox, oy] = s.ox(W, H);
+    const angle = s.baseAngle + s.swayAmp * Math.sin(t * s.freq + s.phase);
+    drawBeam(ctx, ox, oy, angle, s.rgb, len);
   }
   ctx.restore();
   slRAF = requestAnimationFrame(slTick);
