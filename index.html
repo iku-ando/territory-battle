@@ -77,10 +77,11 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 /* バンド画像コーナー */
 .band-wrap{position:relative;width:892px;max-width:100%;}
 .band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;border:1px solid rgba(255,255,255,0.12);z-index:1;}
-.band-img.tl{top:0;left:-292px;}
-.band-img.tr{top:0;right:-292px;}
-.band-img.bl{bottom:0;left:-292px;}
-.band-img.br{bottom:0;right:-292px;}
+.band-img.tl{top:0;left:-280px;}
+.band-img.tr{top:0;right:-280px;}
+.band-img.bl{bottom:0;left:-280px;}
+.band-img.br{bottom:0;right:-280px;}
+.cell.first-fan{outline:2px solid rgba(255,220,0,0.85);outline-offset:-2px;}
 
 
 /* OVERLAY共通 */
@@ -215,7 +216,25 @@ async function fetchTalkMinutes(groupIdx, startDate, endDate){
     return Math.floor(seconds/60);
   } catch(e){ return null; }
 }
-const BONUS_POS=[[0,0],[0,14],[9,0],[9,14],[4,7]];
+const START_CELLS=new Set(['0,0','0,'+(15-1),(10-1)+',0',(10-1)+','+(15-1)]);
+
+function genBonusPos(){
+  // rows 2-7, cols 3-11 の範囲でペアを作り、180°対称で4箇所ランダム設置
+  const pool=[];
+  for(let r=2;r<=7;r++){
+    for(let c=3;c<=11;c++){
+      const mr=10-1-r, mc=15-1-c;
+      if(r*15+c < mr*15+mc) pool.push([r,c]);
+    }
+  }
+  // シャッフル
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  const [r1,c1]=pool[0], [r2,c2]=pool[1];
+  return [[r1,c1],[10-1-r1,15-1-c1],[r2,c2],[10-1-r2,15-1-c2]];
+}
 
 let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
@@ -238,7 +257,7 @@ function initG(members, startDate, passwords){
   G.debugDate=startDate;
   G.passwords=passwords;
   fillCorners();
-  BONUS_POS.forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
+  genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
 }
 
 // 仮想日付を次の平日に進める
@@ -533,11 +552,13 @@ function render(){
       const own=G.board[r][c];
       const key=r+','+c;
       const isBonus=G.bonus.hasOwnProperty(key);
+      const isStart=START_CELLS.has(key);
       const cell=document.createElement('div');
       let cls='cell';
       if(own===-1) cls+=' empty';
       else cls+=' t'+own;
       if(isBonus) cls+=' bonus';
+      if(isStart) cls+=' first-fan';
       if(adj.has(r*COLS+c)&&own!==G.cur) cls+=' adjacent-hint';
       cell.className=cls;
       makeFanCell(cell, own, isBonus);
