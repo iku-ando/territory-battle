@@ -19,7 +19,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .btn-main:hover{background:#fff;}
 
 /* GAME */
-#game{display:none;width:100%;max-width:1500px;}
+#game{display:none;width:100%;max-width:1500px;flex-direction:column;align-items:center;}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;width:892px;max-width:100%;}
 .sc{background:#3a3a3a;border:2px solid #555;padding:10px;}
 .sc.active{border-color:#fff;}
@@ -549,7 +549,7 @@ function render(){
 
 function showGame(){
   document.getElementById('setup').style.display='none';
-  document.getElementById('game').style.display='block';
+  document.getElementById('game').style.display='flex';
   // ログイン画面を表示
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
@@ -587,7 +587,7 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   G.bonus=G.bonus||{};
   G.passwords=G.passwords||['','','',''];
   document.getElementById('setup').style.display='none';
-  document.getElementById('game').style.display='block';
+  document.getElementById('game').style.display='flex';
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
   document.getElementById('loginOv').classList.add('show');
@@ -665,7 +665,7 @@ if(_saved&&_saved.board&&_saved.teams){
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
     document.getElementById('setup').style.display='none';
-    document.getElementById('game').style.display='block';
+    document.getElementById('game').style.display='flex';
     render();
   }
 }
