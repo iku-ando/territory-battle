@@ -11,10 +11,10 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 /* スポットライト */
 .spotlight{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(90px);will-change:transform;}
-.spot-a{width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,68,102,0.18) 0%,transparent 65%);animation:spot-a 13s ease-in-out infinite;}
-.spot-b{width:45vw;height:45vw;background:radial-gradient(circle,rgba(68,170,255,0.18) 0%,transparent 65%);animation:spot-b 17s ease-in-out infinite;animation-delay:-4s;}
-.spot-c{width:48vw;height:48vw;background:radial-gradient(circle,rgba(68,255,136,0.15) 0%,transparent 65%);animation:spot-c 11s ease-in-out infinite;animation-delay:-7s;}
-.spot-d{width:44vw;height:44vw;background:radial-gradient(circle,rgba(255,204,34,0.16) 0%,transparent 65%);animation:spot-d 15s ease-in-out infinite;animation-delay:-2s;}
+.spot-a{width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,68,102,0.42) 0%,transparent 70%);animation:spot-a 13s ease-in-out infinite;}
+.spot-b{width:45vw;height:45vw;background:radial-gradient(circle,rgba(68,170,255,0.42) 0%,transparent 70%);animation:spot-b 17s ease-in-out infinite;animation-delay:-4s;}
+.spot-c{width:48vw;height:48vw;background:radial-gradient(circle,rgba(68,255,136,0.38) 0%,transparent 70%);animation:spot-c 11s ease-in-out infinite;animation-delay:-7s;}
+.spot-d{width:44vw;height:44vw;background:radial-gradient(circle,rgba(255,204,34,0.38) 0%,transparent 70%);animation:spot-d 15s ease-in-out infinite;animation-delay:-2s;}
 @keyframes spot-a{0%{transform:translate(2vw,3vh)}33%{transform:translate(55vw,18vh)}66%{transform:translate(22vw,62vh)}100%{transform:translate(2vw,3vh)}}
 @keyframes spot-b{0%{transform:translate(58vw,4vh)}33%{transform:translate(6vw,48vh)}66%{transform:translate(68vw,58vh)}100%{transform:translate(58vw,4vh)}}
 @keyframes spot-c{0%{transform:translate(12vw,55vh)}33%{transform:translate(72vw,12vh)}66%{transform:translate(38vw,72vh)}100%{transform:translate(12vw,55vh)}}
@@ -108,6 +108,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 </style>
 </head>
 <body>
+<audio id="bgm" loop preload="none" style="display:none"></audio>
 <div class="spotlight spot-a"></div>
 <div class="spotlight spot-b"></div>
 <div class="spotlight spot-c"></div>
@@ -423,6 +424,7 @@ async function showTurnPopup(isAuto){
 
 document.getElementById('turnOk').addEventListener('click',()=>{
   document.getElementById('turnOv').classList.remove('show');
+  playBGM(G.cur);
 });
 
 // --- マスクリック ---
@@ -660,6 +662,7 @@ document.getElementById('loginOk').addEventListener('click',()=>{
   document.getElementById('loginOv').classList.remove('show');
   setMsg('');
   render();
+  playBGM(G.cur);
 });
 
 document.getElementById('loginWatch').addEventListener('click',()=>{
@@ -725,6 +728,23 @@ setInterval(()=>{
   }
 },60000);
 
+// ========== BGM ==========
+const BGM_URLS = [
+  'https://static-cos.mureka.ai/cos-prod/song/audio/20260330/music_130425976586243_NEioTTZCxL3EAjFDDtxxZJ_unjjrq.mp3',
+  'https://static-cos.mureka.ai/cos-prod/song/audio/20260308/music_126385293557764_5yfFEfdjhHmzwvZ1dmTSYU_tpbhnu.mp3',
+  'https://static-cos.mureka.ai/cos-prod/song/audio/20260329/music_130292153122817_ASQG5UEkbPp66uNrP8ordg_hqbslx.mp3',
+  'https://static-cos.mureka.ai/cos-prod/song/audio/20260329/music_130266218102788_5gvfG8uggb8z6TCX4xrRKH_fvzqoh.mp3',
+];
+function playBGM(teamIdx) {
+  const audio = document.getElementById('bgm');
+  const url = BGM_URLS[teamIdx];
+  if (audio.dataset.team === String(teamIdx) && !audio.paused) return;
+  audio.dataset.team = String(teamIdx);
+  audio.src = url;
+  audio.volume = 0.45;
+  audio.play().catch(()=>{});
+}
+
 // ========== SEARCHLIGHTS ==========
 let slRAF = null;
 
@@ -744,9 +764,9 @@ function drawBeam(ctx, ox, oy, angle, rgb, len) {
   const a1 = angle - half, a2 = angle + half;
   const [r,g,b] = rgb;
   const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, len);
-  grad.addColorStop(0,   `rgba(${r},${g},${b},0.28)`);
-  grad.addColorStop(0.3, `rgba(${r},${g},${b},0.10)`);
-  grad.addColorStop(0.7, `rgba(${r},${g},${b},0.04)`);
+  grad.addColorStop(0,   `rgba(${r},${g},${b},0.14)`);
+  grad.addColorStop(0.3, `rgba(${r},${g},${b},0.05)`);
+  grad.addColorStop(0.7, `rgba(${r},${g},${b},0.02)`);
   grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
   ctx.moveTo(ox, oy);
@@ -756,7 +776,7 @@ function drawBeam(ctx, ox, oy, angle, rgb, len) {
   ctx.fill();
   // 光源グロー
   const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 14);
-  glow.addColorStop(0, `rgba(${r},${g},${b},0.35)`);
+  glow.addColorStop(0, `rgba(${r},${g},${b},0.18)`);
   glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
   ctx.arc(ox, oy, 14, 0, Math.PI*2);
