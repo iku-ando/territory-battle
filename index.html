@@ -740,13 +740,14 @@ const CORNER_LIGHTS = [
 ];
 
 function drawBeam(ctx, ox, oy, angle, rgb, len) {
-  const half = 0.16; // 半頂角（ラジアン）
+  const half = 0.18;
   const a1 = angle - half, a2 = angle + half;
   const [r,g,b] = rgb;
   const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, len);
-  grad.addColorStop(0,    `rgba(${r},${g},${b},0.7)`);
-  grad.addColorStop(0.45, `rgba(${r},${g},${b},0.22)`);
-  grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+  grad.addColorStop(0,   `rgba(${r},${g},${b},0.28)`);
+  grad.addColorStop(0.3, `rgba(${r},${g},${b},0.10)`);
+  grad.addColorStop(0.7, `rgba(${r},${g},${b},0.04)`);
+  grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
   ctx.moveTo(ox, oy);
   ctx.arc(ox, oy, len, a1, a2);
@@ -754,11 +755,11 @@ function drawBeam(ctx, ox, oy, angle, rgb, len) {
   ctx.fillStyle = grad;
   ctx.fill();
   // 光源グロー
-  const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 18);
-  glow.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
+  const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 14);
+  glow.addColorStop(0, `rgba(${r},${g},${b},0.35)`);
   glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.beginPath();
-  ctx.arc(ox, oy, 18, 0, Math.PI*2);
+  ctx.arc(ox, oy, 14, 0, Math.PI*2);
   ctx.fillStyle = glow;
   ctx.fill();
 }
