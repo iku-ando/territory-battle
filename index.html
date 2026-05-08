@@ -6,11 +6,23 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#2a2a2a;color:#f0f0f0;font-family:sans-serif;padding:20px;display:flex;flex-direction:column;align-items:center;}
-h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;letter-spacing:2px;}
+body{background:#06060f;color:#f0f0f0;font-family:sans-serif;padding:20px;display:flex;flex-direction:column;align-items:center;}
+h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;letter-spacing:2px;position:relative;z-index:1;}
+
+/* スポットライト */
+.spotlight{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(90px);will-change:transform;}
+.spot-a{width:50vw;height:50vw;background:radial-gradient(circle,rgba(255,68,102,0.18) 0%,transparent 65%);animation:spot-a 13s ease-in-out infinite;}
+.spot-b{width:45vw;height:45vw;background:radial-gradient(circle,rgba(68,170,255,0.18) 0%,transparent 65%);animation:spot-b 17s ease-in-out infinite;animation-delay:-4s;}
+.spot-c{width:48vw;height:48vw;background:radial-gradient(circle,rgba(68,255,136,0.15) 0%,transparent 65%);animation:spot-c 11s ease-in-out infinite;animation-delay:-7s;}
+.spot-d{width:44vw;height:44vw;background:radial-gradient(circle,rgba(255,204,34,0.16) 0%,transparent 65%);animation:spot-d 15s ease-in-out infinite;animation-delay:-2s;}
+@keyframes spot-a{0%{transform:translate(2vw,3vh)}33%{transform:translate(55vw,18vh)}66%{transform:translate(22vw,62vh)}100%{transform:translate(2vw,3vh)}}
+@keyframes spot-b{0%{transform:translate(58vw,4vh)}33%{transform:translate(6vw,48vh)}66%{transform:translate(68vw,58vh)}100%{transform:translate(58vw,4vh)}}
+@keyframes spot-c{0%{transform:translate(12vw,55vh)}33%{transform:translate(72vw,12vh)}66%{transform:translate(38vw,72vh)}100%{transform:translate(12vw,55vh)}}
+@keyframes spot-d{0%{transform:translate(38vw,28vh)}25%{transform:translate(72vw,58vh)}50%{transform:translate(18vw,68vh)}75%{transform:translate(62vw,8vh)}100%{transform:translate(38vw,28vh)}}
 
 /* SETUP */
-#setup{background:#3a3a3a;border:2px solid #555;padding:24px;width:100%;max-width:600px;margin-bottom:20px;}
+#setup{background:#3a3a3a;border:2px solid #555;padding:24px;width:100%;max-width:600px;margin-bottom:20px;position:relative;z-index:1;}
+#game{position:relative;z-index:1;}
 .setup-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}
 .team-box{background:#444;border:2px solid #555;padding:12px;}
 .team-box label{display:block;font-size:12px;margin-bottom:6px;font-weight:bold;}
@@ -76,12 +88,12 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .note{font-size:11px;color:#888;margin-top:6px;line-height:1.8;}
 /* バンド画像コーナー */
 .band-wrap{position:relative;width:892px;max-width:100%;}
-.band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;border:1px solid rgba(255,255,255,0.12);z-index:1;}
+.band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;z-index:1;}
 .band-img.tl{top:0;left:-280px;}
 .band-img.tr{top:0;right:-280px;}
 .band-img.bl{bottom:0;left:-280px;}
 .band-img.br{bottom:0;right:-280px;}
-.cell.first-fan{outline:2px solid rgba(255,220,0,0.85);outline-offset:-2px;}
+.cell.first-fan::before{content:'';position:absolute;inset:0;box-shadow:inset 0 0 0 2px #ffd700;pointer-events:none;z-index:10;}
 
 
 /* OVERLAY共通 */
@@ -96,6 +108,10 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 </style>
 </head>
 <body>
+<div class="spotlight spot-a"></div>
+<div class="spotlight spot-b"></div>
+<div class="spotlight spot-c"></div>
+<div class="spotlight spot-d"></div>
 <h1>TERRITORY BATTLE</h1>
 
 <!-- SETUP -->
