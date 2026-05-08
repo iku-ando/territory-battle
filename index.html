@@ -32,14 +32,14 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 /* GAME */
 #game{display:none;width:100%;max-width:1500px;flex-direction:column;align-items:center;}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;width:892px;max-width:100%;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;width:602px;max-width:100%;}
 .sc{background:#3a3a3a;border:2px solid #555;padding:10px;}
 .sc.active{border-color:#fff;}
 .sc-name{font-size:11px;color:#aaa;margin-bottom:6px;}
 .sc-pts{font-size:20px;font-weight:bold;margin-bottom:4px;}
 .sc-row{font-size:11px;color:#aaa;display:flex;justify-content:space-between;margin-top:2px;}
 .sc-row span:last-child{color:#f0f0f0;}
-.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;width:892px;max-width:100%;}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;width:602px;max-width:100%;}
 .turn-box{font-family:'Press Start 2P',monospace;font-size:8px;padding:8px 12px;border:2px solid #fff;background:#3a3a3a;}
 .btn-sm{font-family:'Press Start 2P',monospace;font-size:7px;background:transparent;color:#aaa;border:2px solid #555;padding:6px 10px;cursor:pointer;}
 .btn-sm:hover{border-color:#aaa;color:#f0f0f0;}
@@ -47,7 +47,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 /* BOARD */
 .board-wrap{background:#06060f;border:2px solid #1a1a3a;padding:10px;overflow-x:auto;width:fit-content;}
-.board{display:grid;grid-template-columns:repeat(15,56px);gap:2px;width:fit-content;}
+.board{display:grid;grid-template-columns:repeat(10,56px);gap:2px;width:fit-content;}
 .cell{width:56px;height:56px;cursor:pointer;position:relative;overflow:hidden;image-rendering:pixelated;}
 .cell:hover{filter:brightness(1.25);}
 
@@ -87,7 +87,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .lbox{width:14px;height:14px;}
 .note{font-size:11px;color:#888;margin-top:6px;line-height:1.8;}
 /* バンド画像コーナー */
-.band-wrap{position:relative;width:892px;max-width:100%;}
+.band-wrap{position:relative;width:602px;max-width:100%;}
 .band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;z-index:1;}
 .band-img.tl{top:0;left:-280px;}
 .band-img.tr{top:0;right:-280px;}
@@ -214,7 +214,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 </div>
 
 <script>
-const COLS=15,ROWS=10;
+const COLS=10,ROWS=10;
 const TNAME=['TEAM A','TEAM B','TEAM C','TEAM D'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
 const PT_PER=100; // 100分で1pt
@@ -234,24 +234,22 @@ async function fetchTalkMinutes(groupIdx, startDate, endDate){
     return Math.floor(seconds/60);
   } catch(e){ return null; }
 }
-const START_CELLS=new Set(['0,0','0,'+(15-1),(10-1)+',0',(10-1)+','+(15-1)]);
+const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
 function genBonusPos(){
-  // rows 2-7, cols 3-11 の範囲でペアを作り、180°対称で4箇所ランダム設置
   const pool=[];
-  for(let r=2;r<=7;r++){
-    for(let c=3;c<=11;c++){
-      const mr=10-1-r, mc=15-1-c;
-      if(r*15+c < mr*15+mc) pool.push([r,c]);
+  for(let r=2;r<=ROWS-3;r++){
+    for(let c=2;c<=COLS-3;c++){
+      const mr=ROWS-1-r, mc=COLS-1-c;
+      if(r*COLS+c < mr*COLS+mc) pool.push([r,c]);
     }
   }
-  // シャッフル
   for(let i=pool.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));
     [pool[i],pool[j]]=[pool[j],pool[i]];
   }
   const [r1,c1]=pool[0], [r2,c2]=pool[1];
-  return [[r1,c1],[10-1-r1,15-1-c1],[r2,c2],[10-1-r2,15-1-c2]];
+  return [[r1,c1],[ROWS-1-r1,COLS-1-c1],[r2,c2],[ROWS-1-r2,COLS-1-c2]];
 }
 
 let G={};
@@ -754,7 +752,7 @@ function playBGM(teamIdx) {
   if (audio.dataset.team === String(teamIdx) && !audio.paused) return;
   audio.dataset.team = String(teamIdx);
   audio.src = url;
-  audio.volume = 0.45;
+  audio.volume = 0.22;
   audio.play().catch(()=>{});
 }
 
