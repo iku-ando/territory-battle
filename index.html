@@ -105,6 +105,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .obody strong{color:#f0f0f0;}
 .opts{font-family:'Press Start 2P',monospace;font-size:20px;margin-bottom:20px;}
 .orow{display:flex;gap:12px;justify-content:center;}
+.admin-box{max-width:660px;width:95%;text-align:left;max-height:90vh;overflow-y:auto;}
+.admin-section{border-top:1px solid #444;margin-top:20px;padding-top:16px;}
+.admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -115,26 +118,41 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 <div class="spotlight spot-d"></div>
 <h1>TERRITORY BATTLE</h1>
 
-<!-- SETUP -->
-<div id="setup">
-  <p style="font-size:13px;margin-bottom:16px;color:#aaa;">ゲーム設定をして開始してください</p>
-  <div style="margin-bottom:16px;">
-    <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">ゲーム開始日</label>
-    <input type="date" id="gameStartDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
-    <p style="font-size:11px;color:#666;margin-top:4px;">発話量の集計開始日（例：2025-04-01）</p>
-  </div>
-  <div style="margin-bottom:20px;">
-    <p style="font-size:12px;color:#aaa;margin-bottom:10px;">各チームのパスワードを設定</p>
-    <div class="setup-grid">
-      <div class="team-box"><label style="color:#ff4466;">TEAM A パスワード</label><input type="text" id="pw0" placeholder="例: teamA2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-      <div class="team-box"><label style="color:#44aaff;">TEAM B パスワード</label><input type="text" id="pw1" placeholder="例: teamB2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-      <div class="team-box"><label style="color:#44ff88;">TEAM C パスワード</label><input type="text" id="pw2" placeholder="例: teamC2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-      <div class="team-box"><label style="color:#ffcc22;">TEAM D パスワード</label><input type="text" id="pw3" placeholder="例: teamD2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+<!-- 管理者オーバーレイ -->
+<div class="overlay" id="adminOv">
+  <div class="obox admin-box">
+    <div class="otitle">⚙ 管理者設定</div>
+    <p style="font-size:13px;margin-bottom:16px;color:#aaa;">ゲーム設定をして開始してください</p>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">ゲーム開始日</label>
+      <input type="date" id="gameStartDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
+      <p style="font-size:11px;color:#666;margin-top:4px;">発話量の集計開始日（例：2025-04-01）</p>
     </div>
-  </div>
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <button class="btn-main" id="startBtn">▶ START GAME</button>
-    <button class="btn-sm" id="resumeBtn" style="display:none;">↩ 続きから再開</button>
+    <div style="margin-bottom:20px;">
+      <p style="font-size:12px;color:#aaa;margin-bottom:10px;">各チームのパスワードを設定</p>
+      <div class="setup-grid">
+        <div class="team-box"><label style="color:#ff4466;">TEAM A パスワード</label><input type="text" id="pw0" placeholder="例: teamA2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44aaff;">TEAM B パスワード</label><input type="text" id="pw1" placeholder="例: teamB2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44ff88;">TEAM C パスワード</label><input type="text" id="pw2" placeholder="例: teamC2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#ffcc22;">TEAM D パスワード</label><input type="text" id="pw3" placeholder="例: teamD2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;">
+      <button class="btn-main" id="startBtn">▶ START GAME</button>
+      <button class="btn-sm" id="resumeBtn" style="display:none;">↩ 続きから再開</button>
+    </div>
+    <!-- ゲーム中のみ表示: 管理操作 -->
+    <div class="admin-section" id="adminActions" style="display:none;">
+      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">GAME CONTROLS</p>
+      <div class="admin-actions">
+        <button class="btn-sm" id="addptBtn">＋ PT</button>
+        <button class="btn-sm" id="nextBtn">NEXT TURN ▶</button>
+        <button class="btn-sm" id="resetBtn">↺ RESET</button>
+      </div>
+    </div>
+    <div class="admin-section">
+      <button class="btn-sm" id="adminClose" style="width:100%;padding:10px;">✕ 閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -143,11 +161,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
   <div class="stats" id="stats"></div>
   <div class="controls">
     <div class="turn-box" id="turnbox"></div>
-    <button class="btn-sm" id="addptBtn">＋ PT</button>
-    <button class="btn-sm" id="nextBtn">NEXT TURN ▶</button>
-    <button class="btn-sm" id="resetBtn">↺ RESET</button>
     <button class="btn-sm" id="reloginBtn">🔑 チーム切替</button>
     <button class="btn-sm" id="bgmBtn">♪ BGM OFF</button>
+    <button class="btn-sm" id="adminBtn">⚙ 設定</button>
     <div id="msg"></div>
   </div>
   <div class="band-wrap">
@@ -178,6 +194,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <div class="orow">
       <button class="btn-main" id="loginOk">ログイン ▶</button>
       <button class="btn-sm" id="loginWatch" style="padding:10px 16px;">観戦モード</button>
+    </div>
+    <div style="margin-top:12px;text-align:center;">
+      <button class="btn-sm" id="adminBtnLogin" style="padding:8px 16px;color:#888;">⚙ 設定</button>
     </div>
   </div>
 </div>
@@ -607,8 +626,8 @@ function render(){
 }
 
 function showGame(){
-  document.getElementById('setup').style.display='none';
   document.getElementById('game').style.display='flex';
+  document.getElementById('adminOv').classList.remove('show');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
   document.getElementById('loginOv').classList.add('show');
@@ -646,8 +665,8 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   G.bonus=G.bonus||{};
   G.passwords=G.passwords||['','','',''];
   sanitizeLoadedGame();
-  document.getElementById('setup').style.display='none';
   document.getElementById('game').style.display='flex';
+  document.getElementById('adminOv').classList.remove('show');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
   document.getElementById('loginOv').classList.add('show');
@@ -720,18 +739,18 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
   localStorage.removeItem('tb3_myTeam');
   myTeam=-1;
   G={};
-  document.getElementById('game').style.display='none';
-  document.getElementById('setup').style.display='block';
+  document.getElementById('board').innerHTML='';
+  document.getElementById('stats').innerHTML='';
   document.getElementById('resumeBtn').style.display='none';
+  document.getElementById('adminActions').style.display='none';
+  document.getElementById('adminOv').classList.add('show');
 });
 
 // --- 起動時 ---
-document.getElementById('setup').style.display='block';
-document.getElementById('game').style.display='none';
+document.getElementById('game').style.display='flex';
 const _saved=load();
 if(_saved&&_saved.board&&_saved.teams){
   document.getElementById('resumeBtn').style.display='inline-block';
-  // myTeamを復元してそのままゲーム再開
   const savedMyTeam=localStorage.getItem('tb3_myTeam');
   if(savedMyTeam!==null){
     myTeam=parseInt(savedMyTeam);
@@ -739,11 +758,13 @@ if(_saved&&_saved.board&&_saved.teams){
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
     sanitizeLoadedGame();
-    document.getElementById('setup').style.display='none';
-    document.getElementById('game').style.display='flex';
     render();
     requestAnimationFrame(initSearchlights);
   }
+  document.getElementById('loginOv').classList.add('show');
+} else {
+  // ゲーム未設定時は管理者設定を開く
+  document.getElementById('adminOv').classList.add('show');
 }
 
 setInterval(()=>{
@@ -762,6 +783,26 @@ setInterval(()=>{
   }
 },60000);
 
+
+// --- 管理者モーダル ---
+function openAdmin(){
+  if(G.passwords){G.passwords.forEach((pw,i)=>{const el=document.getElementById('pw'+i);if(el)el.value=pw;});}
+  if(G.gameStart){document.getElementById('gameStartDate').value=G.gameStart;}
+  const gameRunning=G.board&&G.board.length>0;
+  document.getElementById('adminActions').style.display=gameRunning?'block':'none';
+  document.getElementById('loginOv').classList.remove('show');
+  document.getElementById('adminOv').classList.add('show');
+}
+document.getElementById('adminBtn').addEventListener('click', openAdmin);
+document.getElementById('adminBtnLogin').addEventListener('click', openAdmin);
+document.getElementById('adminClose').addEventListener('click',()=>{
+  document.getElementById('adminOv').classList.remove('show');
+  if(G.board&&G.board.length>0){
+    document.getElementById('loginPw').value='';
+    document.getElementById('loginErr').style.display='none';
+    document.getElementById('loginOv').classList.add('show');
+  }
+});
 // ========== BGM ==========
 const BGM_URLS = [
   'https://static-cos.mureka.ai/cos-prod/song/audio/20260330/music_130425976586243_NEioTTZCxL3EAjFDDtxxZJ_unjjrq.mp3',
