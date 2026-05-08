@@ -291,6 +291,27 @@ function today(){
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
+function sanitizeLoadedGame(){
+  // ボードサイズ不整合（旧バージョン保存データ）は盤面を再初期化
+  if(!G.board||G.board.length!==ROWS||!G.board[0]||G.board[0].length!==COLS){
+    G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
+    fillCorners();
+    G.bonus={};
+    genBonusPos().forEach(([r,c])=>{G.bonus[r+','+c]=-1;});
+    return;
+  }
+  // 四隅が空の場合は各チームで確保（旧保存データ対策）
+  if(G.board[0][0]===-1)          G.board[0][0]=0;
+  if(G.board[0][COLS-1]===-1)     G.board[0][COLS-1]=1;
+  if(G.board[ROWS-1][0]===-1)     G.board[ROWS-1][0]=2;
+  if(G.board[ROWS-1][COLS-1]===-1)G.board[ROWS-1][COLS-1]=3;
+  // ボーナスが4つ未満なら再生成
+  if(Object.keys(G.bonus).length<4){
+    G.bonus={};
+    genBonusPos().forEach(([r,c])=>{if(G.board[r][c]===-1)G.bonus[r+','+c]=-1;});
+  }
+}
+
 function fillCorners(){
   // 四隅に1名ずつ配置
   G.board[0][0]=0;      // Team A 左上
@@ -624,6 +645,7 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   G=saved;
   G.bonus=G.bonus||{};
   G.passwords=G.passwords||['','','',''];
+  sanitizeLoadedGame();
   document.getElementById('setup').style.display='none';
   document.getElementById('game').style.display='flex';
   document.getElementById('loginPw').value='';
@@ -716,6 +738,7 @@ if(_saved&&_saved.board&&_saved.teams){
     G=_saved;
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
+    sanitizeLoadedGame();
     document.getElementById('setup').style.display='none';
     document.getElementById('game').style.display='flex';
     render();
