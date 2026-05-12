@@ -584,10 +584,10 @@ async function clickCell(r,c){
     return;
   }
 
-  const targetLabel=empty?(isBonus?'ボーナスマス':'自分のファンを増やす？'):TNAME[own]+'の陣地';
+  const targetLabel=empty?(isBonus?'コアファンを獲得する？':'自分のファンを増やす？'):'相手のファンを自分のファンにする？';
   const bonusNote=isBonus?'<br><span style="color:#ffcc22">★ボーナス +3PT獲得！</span>':'';
   lockAndConfirm(
-    empty?targetLabel:targetLabel+'を取得？',
+    targetLabel,
     '消費: <strong>'+cost+' PT</strong>'+bonusNote,
     ()=>{
       G.board[r][c]=myTeam;
