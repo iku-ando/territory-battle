@@ -482,8 +482,25 @@ document.getElementById('turnOk').addEventListener('click',()=>{
 });
 
 // --- マスクリック ---
-function clickCell(r,c){
+async function clickCell(r,c){
   if(!canOperate()){showNotMyTurn();return;}
+
+  // サーバーの最新状態を確認してロックチェック
+  const latest=await loadFromServer();
+  if(latest&&latest.board){
+    // 他の人が操作中（確認ダイアログ中）
+    if(latest._lock&&latest._lock.until>Date.now()){
+      setMsg('⚠ 他のメンバーが操作中です。しばらくお待ちください');
+      return;
+    }
+    // サーバー側が更新済みなら先に同期
+    if(latest.updated_at&&G.updated_at&&latest.updated_at>G.updated_at){
+      G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame(); render();
+      setMsg('🔄 画面を更新しました。もう一度タップしてください');
+      return;
+    }
+  }
+
   const own=G.board[r][c];
   if(own===G.cur){setMsg('自分の陣地！');return;}
   if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
@@ -491,9 +508,22 @@ function clickCell(r,c){
   const isBonus=G.bonus.hasOwnProperty(r+','+c);
   const cost=empty?1:2;
 
+  // 確認ダイアログを開く前にロックをセット
+  function lockAndConfirm(title, body, onOk){
+    G._lock={until: Date.now()+30000};
+    save();
+    showConfirm(title, body, ()=>{
+      delete G._lock;
+      onOk();
+    });
+    document.getElementById('confCancel').addEventListener('click',()=>{
+      delete G._lock; save();
+    },{once:true});
+  }
+
   if(G.teams[G.cur].pts<cost){
     if(!empty&&G.teams[G.cur].pts>=1){
-      showConfirm('空白化する？',
+      lockAndConfirm('空白化する？',
         TNAME[G.cur]+' → 空白<br>消費: <strong>1 PT</strong>',
         ()=>{G.board[r][c]=-1;G.teams[G.cur].pts--;G.pending=null;setMsg('空白化（1pt消費）');save();render();});
     } else {
@@ -504,7 +534,7 @@ function clickCell(r,c){
 
   const targetLabel=empty?(isBonus?'ボーナスマス':'空白マス'):TNAME[own]+'の陣地';
   const bonusNote=isBonus?'<br><span style="color:#ffcc22">★ボーナス +3PT獲得！</span>':'';
-  showConfirm(
+  lockAndConfirm(
     targetLabel+'を取得？',
     '消費: <strong>'+cost+' PT</strong>'+bonusNote,
     ()=>{
@@ -812,23 +842,22 @@ setInterval(()=>{
   }
 },60000);
 
-// 1分ごとにEC2から最新データを取得して画面を同期
+// 10秒ごとにEC2から最新データを取得して画面を同期
 setInterval(async()=>{
-  // オーバーレイ表示中・操作中は更新しない
   const anyOverlay=['loginOv','confirmOv','turnOv','zeroOv','adminOv'].some(
     id=>document.getElementById(id).classList.contains('show')
   );
   if(anyOverlay||!G.board||!G.board.length) return;
   const latest=await loadFromServer();
   if(!latest||!latest.board) return;
-  // サーバー側の方が新しい場合だけ更新（updated_atで比較）
   if(latest.updated_at&&G.updated_at&&latest.updated_at<=G.updated_at) return;
   G=latest;
   G.bonus=G.bonus||{};
   sanitizeLoadedGame();
   render();
   localStorage.setItem('tb3',JSON.stringify(G));
-},60000);
+  setMsg('🔄 画面を更新しました');
+},10000);
 
 
 // --- 管理者モーダル ---
