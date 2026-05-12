@@ -260,21 +260,9 @@ async function fetchTalkMinutes(groupIdx, startDate, endDate){
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
-function genBonusPos(){
-  const pool=[];
-  for(let r=2;r<=ROWS-3;r++){
-    for(let c=2;c<=COLS-3;c++){
-      const mr=ROWS-1-r, mc=COLS-1-c;
-      if(r*COLS+c < mr*COLS+mc) pool.push([r,c]);
-    }
-  }
-  for(let i=pool.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [pool[i],pool[j]]=[pool[j],pool[i]];
-  }
-  const [r1,c1]=pool[0], [r2,c2]=pool[1];
-  return [[r1,c1],[ROWS-1-r1,COLS-1-c1],[r2,c2],[ROWS-1-r2,COLS-1-c2]];
-}
+// ボーナスマス固定位置（10x10、180°対称・四隅除外）
+const BONUS_POS_FIXED = [[2,3],[7,6],[3,6],[6,3]];
+function genBonusPos(){ return BONUS_POS_FIXED; }
 
 let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
