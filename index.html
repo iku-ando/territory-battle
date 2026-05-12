@@ -849,21 +849,30 @@ setInterval(()=>{
 
 // 10秒ごとにEC2から最新データを取得して画面を同期
 setInterval(async()=>{
-  const anyOverlay=['loginOv','confirmOv','turnOv','zeroOv','adminOv'].some(
+  // 確認ダイアログ・管理画面は操作中なのでスキップ
+  const opOverlay=['confirmOv','adminOv'].some(
     id=>document.getElementById(id).classList.contains('show')
   );
-  if(anyOverlay||!G.board||!G.board.length) return;
+  if(opOverlay) return;
+  // 直近4秒以内に自分が保存した場合もスキップ
+  if(G._savedAt&&Date.now()-G._savedAt<4000) return;
   const latest=await loadFromServer();
   if(!latest||!latest.board) return;
-  if(latest.updated_at&&G.updated_at&&latest.updated_at<=G.updated_at) return;
-  // 直近5秒以内に自分が保存した場合はスキップ（自分の操作を上書きしない）
-  if(G._savedAt&&Date.now()-G._savedAt<5000) return;
+  // ボード状態を文字列化して変化チェック（updated_at比較より確実）
+  const latestBoard=JSON.stringify(latest.board);
+  const curBoard=G.board?JSON.stringify(G.board):'';
+  const latestPts=JSON.stringify((latest.teams||[]).map(t=>t.pts));
+  const curPts=G.teams?JSON.stringify(G.teams.map(t=>t.pts)):'';
+  if(latestBoard===curBoard&&latestPts===curPts) return;
   G=latest;
   G.bonus=G.bonus||{};
   sanitizeLoadedGame();
   render();
   localStorage.setItem('tb3',JSON.stringify(G));
-  setMsg('🔄 画面を更新しました');
+  // loginOv表示中でなければメッセージ表示
+  if(!document.getElementById('loginOv').classList.contains('show')){
+    setMsg('🔄 画面を更新しました');
+  }
 },10000);
 
 
