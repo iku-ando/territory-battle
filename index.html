@@ -74,6 +74,16 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 @keyframes cy-glow{0%,100%{opacity:.75;}50%{opacity:1;}}
 @keyframes bonus-pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
 @keyframes stand-breath{0%,100%{transform:translateY(0);}50%{transform:translateY(-1px);}}
+@keyframes cap-burst{0%{transform:translate(-50%,-50%) scale(0);opacity:.9;}100%{transform:translate(-50%,-50%) scale(4);opacity:0;}}
+@keyframes cap-ring{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(3.5);opacity:0;}}
+@keyframes cap-text{0%{transform:translate(-50%,0) scale(.6);opacity:1;}60%{transform:translate(-50%,-52px) scale(1.15);opacity:1;}100%{transform:translate(-50%,-80px) scale(1);opacity:0;}}
+@keyframes cap-spark{0%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(var(--sx),var(--sy)) scale(0);opacity:0;}}
+@keyframes cap-card{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px currentColor,0 0 20px 6px currentColor;}}
+.cap-wrap{position:fixed;pointer-events:none;z-index:9999;}
+.cap-burst{position:absolute;border-radius:50%;animation:cap-burst .55s cubic-bezier(.2,.8,.4,1) forwards;}
+.cap-ring{position:absolute;border-radius:50%;border:3px solid currentColor;animation:cap-ring .6s ease-out forwards;}
+.cap-text{position:absolute;font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px;white-space:nowrap;animation:cap-text .75s cubic-bezier(.2,.8,.4,1) forwards;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+.cap-spark{position:absolute;width:6px;height:6px;border-radius:50%;animation:cap-spark .5s ease-out forwards;}
 @keyframes sync-spin{to{transform:rotate(360deg)}}
 #syncSpinner{display:none;font-size:13px;opacity:.7;animation:sync-spin .8s linear infinite;}
 
@@ -585,12 +595,69 @@ async function clickCell(r,c){
       G.pending=null;
       if(isBonus){G.bonus[r+','+c]=myTeam;G.teams[myTeam].pts+=3;setMsg('★ボーナス！3PT獲得（'+cost+'pt消費）');}
       else setMsg('取得！（'+cost+'pt消費）');
-      save();render();
+      save(); render();
+      showCaptureEffect(r, c, myTeam, isBonus);
     }
   );
 }
 
 function setMsg(t){document.getElementById('msg').textContent=t;}
+
+// マス取得エフェクト
+function showCaptureEffect(r, c, teamIdx, isBonus){
+  const boardEl=document.getElementById('board');
+  const cellEl=boardEl.querySelectorAll('.cell')[r*COLS+c];
+  if(!cellEl) return;
+  const rect=cellEl.getBoundingClientRect();
+  const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+  const col=TCOL[teamIdx];
+
+  const wrap=document.createElement('div');
+  wrap.className='cap-wrap';
+  wrap.style.cssText=`left:${cx}px;top:${cy}px;`;
+
+  // バースト円
+  const burst=document.createElement('div');
+  burst.className='cap-burst';
+  burst.style.cssText=`width:${rect.width}px;height:${rect.height}px;background:${col};opacity:.55;`;
+  wrap.appendChild(burst);
+
+  // リング
+  const ring=document.createElement('div');
+  ring.className='cap-ring';
+  ring.style.cssText=`width:${rect.width*.8}px;height:${rect.height*.8}px;color:${col};`;
+  wrap.appendChild(ring);
+
+  // テキスト
+  const txt=document.createElement('div');
+  txt.className='cap-text';
+  txt.style.color=col;
+  txt.textContent=isBonus?'★ BONUS!':'GET!';
+  wrap.appendChild(txt);
+
+  // スパーク（放射状の小粒）
+  const sparks=8;
+  for(let i=0;i<sparks;i++){
+    const sp=document.createElement('div');
+    sp.className='cap-spark';
+    const angle=(i/sparks)*Math.PI*2;
+    const dist=isBonus?60:44;
+    sp.style.cssText=`background:${col};--sx:${Math.cos(angle)*dist}px;--sy:${Math.sin(angle)*dist}px;animation-delay:${i*15}ms;`;
+    wrap.appendChild(sp);
+  }
+
+  document.body.appendChild(wrap);
+  setTimeout(()=>wrap.remove(), 900);
+
+  // スコアカードをチカッと光らせる
+  const cards=document.getElementById('stats').querySelectorAll('.sc');
+  if(cards[teamIdx]){
+    cards[teamIdx].style.color=col;
+    cards[teamIdx].style.animation='cap-card .6s ease-out';
+    setTimeout(()=>{cards[teamIdx].style.animation='';cards[teamIdx].style.color='';},700);
+  }
+}
+
 let _syncTimer=null;
 function showSyncSpinner(){
   const el=document.getElementById('syncSpinner');
