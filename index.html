@@ -704,7 +704,7 @@ function showNotMyTurn(){
 }
 
 // --- ボタンイベント ---
-document.getElementById('startBtn').addEventListener('click',()=>{
+document.getElementById('startBtn').addEventListener('click', async ()=>{
   const startDate=document.getElementById('gameStartDate').value||today();
   const members=[1,1,1,1]; // 初期1名固定
   const passwords=[0,1,2,3].map(i=>(document.getElementById('pw'+i)||{value:''}).value||'');
@@ -713,7 +713,15 @@ document.getElementById('startBtn').addEventListener('click',()=>{
   }
   localStorage.removeItem('tb3');
   initG(members, startDate, passwords);
-  save();
+  // EC2への保存を完了してから画面を進める（他ブラウザが即時同期できるよう）
+  const startBtn=document.getElementById('startBtn');
+  startBtn.disabled=true; startBtn.textContent='保存中…';
+  try{
+    G._savedAt=Date.now();
+    localStorage.setItem('tb3',JSON.stringify(G));
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(G)});
+  }catch(e){}
+  startBtn.disabled=false; startBtn.textContent='▶ START GAME';
   showGame();
   render();
   showTurnPopup(false);
@@ -811,10 +819,15 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
 // --- 起動時 ---
 document.getElementById('game').style.display='flex';
 (async()=>{
-  // EC2から読み込み、失敗時はlocalStorageにフォールバック
+  // EC2から読み込み。_resetの場合は少し待ってリトライ（他ブラウザが保存中の可能性）
   let _saved = await loadFromServer();
   if(!_saved){
-    // EC2がリセット済み or 取得失敗 → localStorageも削除して初期状態に
+    // _reset or 失敗 → 3秒待ってもう一度試みる（リセット直後に別タブが新ゲームを保存中かもしれない）
+    await new Promise(r=>setTimeout(r,3000));
+    _saved = await loadFromServer();
+  }
+  if(!_saved){
+    // それでもなければ初期状態
     localStorage.removeItem('tb3');
     localStorage.removeItem('tb3_myTeam');
   }
