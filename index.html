@@ -812,6 +812,24 @@ setInterval(()=>{
   }
 },60000);
 
+// 1分ごとにEC2から最新データを取得して画面を同期
+setInterval(async()=>{
+  // オーバーレイ表示中・操作中は更新しない
+  const anyOverlay=['loginOv','confirmOv','turnOv','zeroOv','adminOv'].some(
+    id=>document.getElementById(id).classList.contains('show')
+  );
+  if(anyOverlay||!G.board||!G.board.length) return;
+  const latest=await loadFromServer();
+  if(!latest||!latest.board) return;
+  // サーバー側の方が新しい場合だけ更新（updated_atで比較）
+  if(latest.updated_at&&G.updated_at&&latest.updated_at<=G.updated_at) return;
+  G=latest;
+  G.bonus=G.bonus||{};
+  sanitizeLoadedGame();
+  render();
+  localStorage.setItem('tb3',JSON.stringify(G));
+},60000);
+
 
 // --- 管理者モーダル ---
 function openAdmin(){
