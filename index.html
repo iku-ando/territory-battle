@@ -375,7 +375,8 @@ function today(){
 function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
-  G.teams&&G.teams.forEach(t=>{
+  G.teams&&G.teams.forEach((t,i)=>{
+    t.name=TNAME[i]; // 常に最新チーム名で上書き
     if(t.talkCarry===undefined) t.talkCarry=t.carry||0;
     if(t.talkMins===undefined) t.talkMins=0;
     if(t.awardedToday===undefined) t.awardedToday=0;
