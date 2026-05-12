@@ -145,17 +145,15 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     </div>
     <!-- ゲーム中のみ表示: 管理操作 -->
     <div class="admin-section" id="adminActions" style="display:none;">
-      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">昨日の会話時間（分）を入力</p>
-      <div class="setup-grid" style="margin-bottom:12px;">
-        <div class="team-box"><label style="color:#ff4466;font-size:11px;">TEAM A</label><input type="number" min="0" id="talkA" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
-        <div class="team-box"><label style="color:#44aaff;font-size:11px;">TEAM B</label><input type="number" min="0" id="talkB" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
-        <div class="team-box"><label style="color:#44ff88;font-size:11px;">TEAM C</label><input type="number" min="0" id="talkC" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
-        <div class="team-box"><label style="color:#ffcc22;font-size:11px;">TEAM D</label><input type="number" min="0" id="talkD" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
+      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">GAME CONTROLS</p>
+      <p style="font-size:11px;color:#666;margin-bottom:10px;">前日の会話量を自動取得してPTを付与します</p>
+      <div id="awardStatus" style="font-size:11px;color:#888;margin-bottom:8px;min-height:14px;"></div>
+      <div class="admin-actions" style="flex-direction:column;gap:8px;">
+        <button class="btn-sm" id="awardPtsBtn" style="width:100%;">✦ 本日のPTを付与（自動取得）</button>
+        <button class="btn-sm" id="debugNextBtn" style="width:100%;color:#888;border-color:#444;font-size:10px;">🔧 翌日に進む（デバッグ）</button>
+        <button class="btn-sm" id="resetBtn" style="width:100%;">↺ RESET</button>
       </div>
-      <div class="admin-actions">
-        <button class="btn-sm" id="awardPtsBtn" style="flex:1;">✦ 本日のPTを付与</button>
-        <button class="btn-sm" id="resetBtn">↺ RESET</button>
-      </div>
+      <div id="debugDateInfo" style="font-size:10px;color:#555;margin-top:8px;text-align:center;"></div>
     </div>
     <div class="admin-section">
       <button class="btn-sm" id="adminClose" style="width:100%;padding:10px;">✕ 閉じる</button>
@@ -249,22 +247,68 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 const COLS=10,ROWS=10;
 const TNAME=['TEAM A','TEAM B','TEAM C','TEAM D'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
-const PT_PER=100; // 100分で1pt
+const PT_PER=50; // 50分で1pt
 const API_BASE='/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
-// 1週間の会話量を540〜840分（9〜14時間）でランダム生成（APIフォールバック用）
-function randTalk(){ return Math.floor(Math.random()*(840-540+1))+540; }
 
-// APIから発話量（分）を取得
-async function fetchTalkMinutes(groupIdx, startDate, endDate){
+// APIから発話量（分）を取得（指定日1日分）
+async function fetchTalkMinutes(groupIdx, targetDate){
   try {
-    const params=new URLSearchParams({group_id:GROUP_IDS[groupIdx], start:startDate, end:endDate});
+    const params=new URLSearchParams({group_id:GROUP_IDS[groupIdx], start:targetDate, end:targetDate});
     const res=await fetch(`${API_BASE}?${params}`);
     const json=await res.json();
     if(!json.success) return null;
     const seconds=json.data.total_seconds||0;
     return Math.floor(seconds/60);
   } catch(e){ return null; }
+}
+
+// 指定日の前日を返す
+function prevDay(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()-1);
+  return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+}
+
+// 全チームの前日会話データを取得してPTを付与
+// fetchDate: 前日として扱う日付（通常はtoday()、デバッグ時はG.debugDate）
+async function awardDailyPoints(fetchDate){
+  const targetDate=prevDay(fetchDate); // 前日
+  const awardBtn=document.getElementById('awardPtsBtn');
+  if(awardBtn){ awardBtn.disabled=true; awardBtn.textContent='⏳ 取得中...'; }
+
+  // 4チーム並列取得
+  const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
+
+  // 取得失敗チェック
+  if(results.every(r=>r===null)){
+    if(awardBtn){ awardBtn.disabled=false; awardBtn.textContent='✦ 本日のPTを付与'; }
+    alert('会話データの取得に失敗しました。APIを確認してください。');
+    return;
+  }
+
+  // PT計算・付与
+  G.teams.forEach((t,i)=>{
+    t.pts=0; // 前日分没収
+    const mins=results[i]!==null?results[i]:0;
+    const carry=t.talkCarry||t.carry||0;
+    const total=carry+mins;
+    const newPts=Math.floor(total/PT_PER);
+    t.pts=newPts;
+    t.talkCarry=total%PT_PER;
+    t.talkMins=mins;
+    t.awardedToday=newPts;
+    t._notified=false; // 翌日ログイン通知リセット
+  });
+  G.lastAwardDate=fetchDate;
+  save(); render();
+
+  if(awardBtn){ awardBtn.disabled=false; awardBtn.textContent='✦ 本日のPTを付与'; }
+
+  // 付与サマリーを表示
+  const summary=G.teams.map((t,i)=>TNAME[i]+': '+t.awardedToday+'PT ('+t.talkMins+'分)').join('  /  ');
+  setMsg('✅ PT付与完了 — '+summary);
+  setTimeout(()=>setMsg(''),5000);
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -293,6 +337,7 @@ function initG(members, startDate, passwords){
   G.lastDate=today();
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.gameStart=startDate;
+  G.debugDate=startDate; // デバッグ用仮想日付（本番では未使用）
   G.passwords=passwords;
   fillCorners();
   genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
@@ -740,31 +785,29 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   requestAnimationFrame(initSearchlights);
 });
 
-// 管理者が会話時間を入力してPT付与
+// 本日のPTを自動取得・付与
 document.getElementById('awardPtsBtn').addEventListener('click',()=>{
-  const inputs=[
-    parseInt(document.getElementById('talkA').value)||0,
-    parseInt(document.getElementById('talkB').value)||0,
-    parseInt(document.getElementById('talkC').value)||0,
-    parseInt(document.getElementById('talkD').value)||0,
-  ];
-  // 全チームのPTを没収して新規付与
-  G.teams.forEach((t,i)=>{
-    t.pts=0; // 前日分没収
-    const carry=t.talkCarry||t.carry||0;
-    const total=carry+inputs[i];
-    const newPts=Math.floor(total/50);
-    t.pts=newPts;
-    t.talkCarry=total%50;
-    t.talkMins=inputs[i];
-    t.awardedToday=newPts;
-  });
-  G.lastAwardDate=today();
-  save();render();
-  // 入力欄をクリア
-  ['talkA','talkB','talkC','talkD'].forEach(id=>{document.getElementById(id).value='';});
-  alert('PT付与完了！各チームのログイン時に通知されます。');
+  awardDailyPoints(G.debugDate||today());
 });
+
+// デバッグ：翌日に進む
+document.getElementById('debugNextBtn').addEventListener('click',()=>{
+  if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+(G.debugDate||today())))return;
+  // 日付を1日進める
+  const d=new Date((G.debugDate||today())+'T00:00:00');
+  d.setDate(d.getDate()+1);
+  G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+  G.lastDate=G.debugDate; // 日付変わり扱い
+  save();
+  updateDebugDateInfo();
+  // 翌日分のPTを自動取得
+  awardDailyPoints(G.debugDate);
+});
+
+function updateDebugDateInfo(){
+  const el=document.getElementById('debugDateInfo');
+  if(el&&G.debugDate) el.textContent='仮想日付: '+G.debugDate;
+}
 
 // ログイン処理
 document.getElementById('loginOk').addEventListener('click',()=>{
@@ -921,6 +964,14 @@ function openAdmin(){
   if(G.gameStart){document.getElementById('gameStartDate').value=G.gameStart;}
   const gameRunning=G.board&&G.board.length>0;
   document.getElementById('adminActions').style.display=gameRunning?'block':'none';
+  // 前回付与日と仮想日付を表示
+  const statusEl=document.getElementById('awardStatus');
+  if(statusEl){
+    const lastAward=G.lastAwardDate||'未付与';
+    const curDate=G.debugDate||today();
+    statusEl.textContent='前回付与: '+lastAward+'　／　取得対象: '+prevDay(curDate)+'の会話データ';
+  }
+  updateDebugDateInfo();
   document.getElementById('loginOv').classList.remove('show');
   document.getElementById('adminOv').classList.add('show');
 }
