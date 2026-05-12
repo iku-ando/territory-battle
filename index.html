@@ -360,9 +360,11 @@ function load(){
 
 async function loadFromServer(){
   try{
-    const res=await fetch(API_URL);
+    const res=await fetch(API_URL+'?t='+Date.now()); // キャッシュバスター
     const json=await res.json();
-    if(json.success&&json.data&&json.data.board) return json.data;
+    if(!json.success) return null;
+    if(json.data&&json.data._reset) return null; // リセット済み
+    if(json.data&&json.data.board) return json.data;
   }catch(e){}
   return null;
 }
@@ -796,7 +798,7 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
   if(!confirm('リセットしますか？'))return;
   localStorage.removeItem('tb3');
   localStorage.removeItem('tb3_myTeam');
-  fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).catch(()=>{});
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({_reset:true})}).catch(()=>{});
   myTeam=-1;
   G={};
   document.getElementById('board').innerHTML='';
@@ -811,7 +813,11 @@ document.getElementById('game').style.display='flex';
 (async()=>{
   // EC2から読み込み、失敗時はlocalStorageにフォールバック
   let _saved = await loadFromServer();
-  if(!_saved) _saved = load();
+  if(!_saved){
+    // EC2がリセット済み or 取得失敗 → localStorageも削除して初期状態に
+    localStorage.removeItem('tb3');
+    localStorage.removeItem('tb3_myTeam');
+  }
   if(_saved&&_saved.board&&_saved.teams){
     document.getElementById('resumeBtn').style.display='inline-block';
     const savedMyTeam=localStorage.getItem('tb3_myTeam');
