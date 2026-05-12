@@ -149,7 +149,6 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
       <p style="font-size:11px;color:#666;margin-bottom:10px;">前日の会話量を自動取得してPTを付与します</p>
       <div id="awardStatus" style="font-size:11px;color:#888;margin-bottom:8px;min-height:14px;"></div>
       <div class="admin-actions" style="flex-direction:column;gap:8px;">
-        <button class="btn-sm" id="awardPtsBtn" style="width:100%;">✦ 本日のPTを付与（自動取得）</button>
         <button class="btn-sm" id="debugNextBtn" style="width:100%;color:#888;border-color:#444;font-size:10px;">🔧 翌日に進む（デバッグ）</button>
         <button class="btn-sm" id="resetBtn" style="width:100%;">↺ RESET</button>
       </div>
@@ -271,19 +270,18 @@ function prevDay(dateStr){
 }
 
 // 全チームの前日会話データを取得してPTを付与
-// fetchDate: 前日として扱う日付（通常はtoday()、デバッグ時はG.debugDate）
+// fetchDate: 付与する「本日」の日付。prevDay(fetchDate) のデータを取得する
 async function awardDailyPoints(fetchDate){
-  const targetDate=prevDay(fetchDate); // 前日
-  const awardBtn=document.getElementById('awardPtsBtn');
-  if(awardBtn){ awardBtn.disabled=true; awardBtn.textContent='⏳ 取得中...'; }
+  const targetDate=prevDay(fetchDate); // 前日のデータを取得
+  setMsg('⏳ 会話データを取得中...');
 
   // 4チーム並列取得
   const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
 
-  // 取得失敗チェック
+  // 全チーム取得失敗なら中止
   if(results.every(r=>r===null)){
-    if(awardBtn){ awardBtn.disabled=false; awardBtn.textContent='✦ 本日のPTを付与'; }
-    alert('会話データの取得に失敗しました。APIを確認してください。');
+    setMsg('❌ 会話データの取得に失敗しました');
+    setTimeout(()=>setMsg(''),4000);
     return;
   }
 
@@ -298,17 +296,23 @@ async function awardDailyPoints(fetchDate){
     t.talkCarry=total%PT_PER;
     t.talkMins=mins;
     t.awardedToday=newPts;
-    t._notified=false; // 翌日ログイン通知リセット
   });
   G.lastAwardDate=fetchDate;
   save(); render();
 
-  if(awardBtn){ awardBtn.disabled=false; awardBtn.textContent='✦ 本日のPTを付与'; }
-
-  // 付与サマリーを表示
-  const summary=G.teams.map((t,i)=>TNAME[i]+': '+t.awardedToday+'PT ('+t.talkMins+'分)').join('  /  ');
-  setMsg('✅ PT付与完了 — '+summary);
+  // 付与サマリーをメッセージ表示
+  const summary=G.teams.map((t,i)=>TNAME[i]+': '+t.awardedToday+'PT').join(' / ');
+  setMsg('✅ '+summary);
   setTimeout(()=>setMsg(''),5000);
+}
+
+// 自動PT付与チェック（起動時・毎分）
+// 今日まだ付与されていなければ自動実行
+async function checkAndAwardDaily(){
+  if(!G.board||!G.board.length) return;
+  const t=today();
+  if(G.lastAwardDate===t) return; // 今日はすでに付与済み
+  await awardDailyPoints(t);
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -785,22 +789,20 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   requestAnimationFrame(initSearchlights);
 });
 
-// 本日のPTを自動取得・付与
-document.getElementById('awardPtsBtn').addEventListener('click',()=>{
-  awardDailyPoints(G.debugDate||today());
-});
-
-// デバッグ：翌日に進む
+// デバッグ：翌日に進む（仮想日付を1日進めて自動付与）
 document.getElementById('debugNextBtn').addEventListener('click',()=>{
-  if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+(G.debugDate||today())))return;
-  // 日付を1日進める
-  const d=new Date((G.debugDate||today())+'T00:00:00');
+  const cur=G.debugDate||today();
+  if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+cur)) return;
+  const d=new Date(cur+'T00:00:00');
   d.setDate(d.getDate()+1);
   G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
-  G.lastDate=G.debugDate; // 日付変わり扱い
+  G.lastAwardDate=''; // リセットして再付与可能に
+  G.lastDate=G.debugDate;
+  // 全チームのPT没収（日付変わり扱い）
+  G.teams.forEach(t=>{t.pts=0;t.awardedToday=0;});
   save();
   updateDebugDateInfo();
-  // 翌日分のPTを自動取得
+  // 翌日の自動付与（prevDay(G.debugDate)のデータを取得）
   awardDailyPoints(G.debugDate);
 });
 
@@ -823,14 +825,12 @@ document.getElementById('loginOk').addEventListener('click',()=>{
   setMsg('');
   render();
   playBGM(myTeam);
-  // 本日初回ログイン時にPT付与通知
+  // 本日初回ログイン時にPT付与通知（デバイスごとにlocalStorageで管理）
   const t=G.teams[myTeam];
-  if(G.lastAwardDate===today()&&(t.awardedToday||0)>0){
-    // 通知済みフラグがなければ表示
-    if(!t._notified){
-      t._notified=true;
-      setTimeout(()=>showAwardPopup(myTeam, t.awardedToday, t.talkCarry||0), 400);
-    }
+  const notifKey='tb3_notified_'+today()+'_'+myTeam;
+  if(G.lastAwardDate===today()&&(t.awardedToday||0)>0&&!localStorage.getItem(notifKey)){
+    localStorage.setItem(notifKey,'1');
+    setTimeout(()=>showAwardPopup(myTeam, t.awardedToday, t.talkCarry||0), 400);
   }
 });
 
@@ -905,6 +905,8 @@ document.getElementById('game').style.display='flex';
       render();
       requestAnimationFrame(initSearchlights);
     }
+    // 起動時に自動PT付与チェック
+    await checkAndAwardDaily();
     document.getElementById('loginOv').classList.add('show');
   } else {
     // ゲーム未設定時は管理者設定を開く
@@ -912,20 +914,20 @@ document.getElementById('game').style.display='flex';
   }
 })();
 
-setInterval(()=>{
+setInterval(async()=>{
   if(G.board&&G.board.length){
     const t=today();
     if(G.lastDate!==t){
-      // 日付変わり → 全チームの未使用PTを没収、通知フラグをリセット
+      // 日付変わり → 全チームの未使用PTを没収
       G.teams.forEach(team=>{
         team.pts=0;
         team.awardedToday=0;
-        team._notified=false;
       });
       G.lastDate=t;
-      save();
-      render();
+      save(); render();
     }
+    // 今日まだ付与されていなければ自動付与
+    await checkAndAwardDaily();
   }
 },60000);
 
