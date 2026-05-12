@@ -837,7 +837,7 @@ function playBGM(teamIdx) {
   if (audio.dataset.team === String(teamIdx) && !audio.paused) return;
   audio.dataset.team = String(teamIdx);
   audio.src = url;
-  audio.volume = 0.22;
+  audio.volume = 0.11;
   audio.play().catch(()=>{});
 }
 
