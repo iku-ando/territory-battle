@@ -759,9 +759,11 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   }
   localStorage.removeItem('tb3');
   initG(members, startDate, passwords);
-  // EC2への保存を完了してから画面を進める（他ブラウザが即時同期できるよう）
   const startBtn=document.getElementById('startBtn');
-  startBtn.disabled=true; startBtn.textContent='保存中…';
+  startBtn.disabled=true; startBtn.textContent='データ取得中…';
+  // 開始日の前日データを取得してPT付与
+  await awardDailyPoints(startDate);
+  startBtn.textContent='保存中…';
   try{
     G._savedAt=Date.now();
     localStorage.setItem('tb3',JSON.stringify(G));
@@ -770,7 +772,6 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   startBtn.disabled=false; startBtn.textContent='▶ START GAME';
   showGame();
   render();
-  showTurnPopup(false);
 });
 
 document.getElementById('resumeBtn').addEventListener('click',()=>{
