@@ -796,10 +796,12 @@ document.getElementById('loginWatch').addEventListener('click',()=>{
 document.getElementById('bgmBtn').addEventListener('click',()=>{
   const audio = document.getElementById('bgm');
   const btn = document.getElementById('bgmBtn');
-  if(audio.paused){
+  if(bgmMuted){
+    bgmMuted = false;
     playBGM(G.cur);
     btn.textContent='♪ BGM OFF';
   } else {
+    bgmMuted = true;
     audio.pause();
     btn.textContent='♪ BGM ON';
   }
@@ -950,7 +952,9 @@ const BGM_URLS = [
   'https://static-cos.mureka.ai/cos-prod/song/audio/20260329/music_130292153122817_ASQG5UEkbPp66uNrP8ordg_hqbslx.mp3',
   'https://static-cos.mureka.ai/cos-prod/song/audio/20260329/music_130266218102788_5gvfG8uggb8z6TCX4xrRKH_fvzqoh.mp3',
 ];
+let bgmMuted = false;
 function playBGM(teamIdx) {
+  if (bgmMuted) return; // ミュート中はチーム切替でも再生しない
   const audio = document.getElementById('bgm');
   const url = BGM_URLS[teamIdx];
   if (audio.dataset.team === String(teamIdx) && !audio.paused) return;
