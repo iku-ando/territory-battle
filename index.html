@@ -145,10 +145,15 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     </div>
     <!-- ゲーム中のみ表示: 管理操作 -->
     <div class="admin-section" id="adminActions" style="display:none;">
-      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">GAME CONTROLS</p>
+      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">昨日の会話時間（分）を入力</p>
+      <div class="setup-grid" style="margin-bottom:12px;">
+        <div class="team-box"><label style="color:#ff4466;font-size:11px;">TEAM A</label><input type="number" min="0" id="talkA" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44aaff;font-size:11px;">TEAM B</label><input type="number" min="0" id="talkB" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44ff88;font-size:11px;">TEAM C</label><input type="number" min="0" id="talkC" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
+        <div class="team-box"><label style="color:#ffcc22;font-size:11px;">TEAM D</label><input type="number" min="0" id="talkD" placeholder="0" style="background:#2a2a2a;border:1px solid #555;color:#f0f0f0;font-size:13px;padding:5px;width:100%;"></div>
+      </div>
       <div class="admin-actions">
-        <button class="btn-sm" id="addptBtn">＋ PT</button>
-        <button class="btn-sm" id="nextBtn">NEXT TURN ▶</button>
+        <button class="btn-sm" id="awardPtsBtn" style="flex:1;">✦ 本日のPTを付与</button>
         <button class="btn-sm" id="resetBtn">↺ RESET</button>
       </div>
     </div>
@@ -278,14 +283,16 @@ function initG(members, startDate, passwords){
     members:1,
     talk:0,
     carry:0,
-    turnStart:startDate,
+    talkMins:0,    // 管理者が入力する昨日の会話時間（分）
+    talkCarry:0,   // 50分未満の端数持ち越し（分）
+    awardedToday:0,// 本日付与PT数（通知用）
   }));
-  G.cur=0;
+  G.cur=0; // 後方互換のため残す（ゲームロジックでは不使用）
   G.pending=null;
   G.bonus={};
   G.lastDate=today();
+  G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.gameStart=startDate;
-  G.debugDate=startDate;
   G.passwords=passwords;
   fillCorners();
   genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
@@ -307,6 +314,13 @@ function today(){
 }
 
 function sanitizeLoadedGame(){
+  // 新フィールドの補完（旧データ互換）
+  if(!G.lastAwardDate) G.lastAwardDate='';
+  G.teams&&G.teams.forEach(t=>{
+    if(t.talkCarry===undefined) t.talkCarry=t.carry||0;
+    if(t.talkMins===undefined) t.talkMins=0;
+    if(t.awardedToday===undefined) t.awardedToday=0;
+  });
   // ボードサイズ不整合（旧バージョン保存データ）は盤面を再初期化
   if(!G.board||G.board.length!==ROWS||!G.board[0]||G.board[0].length!==COLS){
     G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -373,20 +387,22 @@ async function loadFromServer(){
 }
 
 function isAdjacent(r,c){
+  const team=myTeam>=0?myTeam:G.cur;
   for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
     const nr=r+dr,nc=c+dc;
-    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]===G.cur)return true;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]===team)return true;
   }
   return false;
 }
 
 function adjacentSet(){
+  const team=myTeam>=0?myTeam:G.cur;
   const s=new Set();
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
-    if(G.board[r][c]===G.cur){
+    if(G.board[r][c]===team){
       for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
         const nr=r+dr,nc=c+dc;
-        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]!==G.cur)s.add(nr*COLS+nc);
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&G.board[nr][nc]!==team)s.add(nr*COLS+nc);
       }
     }
   }
@@ -403,7 +419,7 @@ function showConfirm(title, body, onOk, showCancel){
   document.getElementById('confOk').onclick=()=>{
     document.getElementById('confirmOv').classList.remove('show');
     onOk();
-    if(G.teams[G.cur].pts<=0) setTimeout(showZeroPopup,200);
+    if(myTeam>=0&&G.teams[myTeam].pts<=0) setTimeout(showZeroPopup,200);
   };
   document.getElementById('confCancel').onclick=()=>{
     document.getElementById('confirmOv').classList.remove('show');
@@ -413,82 +429,36 @@ function showConfirm(title, body, onOk, showCancel){
 
 // --- pt=0通知 ---
 function showZeroPopup(){
-  const i=G.cur;
+  const i=myTeam>=0?myTeam:0;
   document.getElementById('zeroTitle').style.color=TCOL[i];
-  document.getElementById('zeroTitle').textContent='ポイントがなくなりました！';
+  document.getElementById('zeroTitle').textContent='今日のポイントがなくなりました';
   document.getElementById('zeroBody').innerHTML=
-    TNAME[i]+' のポイントが <strong>0</strong> になりました。<br>次のチームのターンに移ります。';
+    TNAME[i]+' の本日ポイントが <strong>0</strong> になりました。<br>明日またポイントが付与されます。';
   document.getElementById('zeroOv').classList.add('show');
 }
 
 document.getElementById('zeroOk').addEventListener('click',()=>{
   document.getElementById('zeroOv').classList.remove('show');
-  G.teams[G.cur].pts=0; // 念のためリセット
-  G.pending=null;
-  G.cur=(G.cur+1)%4;
-  G.lastDate=today();
-  save();
-  showTurnPopup(false);
 });
 
 // --- ターンポップアップ ---
-async function showTurnPopup(isAuto){
-  const i=G.cur;
-  const t=G.teams[i];
-
-  // ローディング表示
+// --- PT付与通知ポップアップ ---
+function showAwardPopup(teamIdx, pts, carry){
+  const i=teamIdx;
   document.getElementById('turnTitle').style.color=TCOL[i];
-  document.getElementById('turnTitle').textContent=(isAuto?'【自動切替】':'')+TNAME[i]+' のターン';
-  document.getElementById('turnBody').innerHTML='⏳ 発話量を取得中...';
-  document.getElementById('turnPts').textContent='';
-  document.getElementById('turnOv').classList.add('show');
-
-  // ターン期間：このチームのturnStart〜仮想日付（デバッグ）or 今日（本番）
-  const startDate=t.turnStart||G.gameStart;
-  const endDate=G.debugDate||today();
-
-  // API取得（失敗時はエラー表示・pt付与なし）
-  let apiMinutes=await fetchTalkMinutes(i, startDate, endDate);
-  if(apiMinutes===null){
-    document.getElementById('turnBody').innerHTML=
-      '<span style="color:#ff4466">❌ データ取得に失敗しました。<br>通信状況を確認してください。</span>';
-    document.getElementById('turnPts').textContent='';
-    return;
-  }
-
-  const total=apiMinutes+(t.carry||0);
-  const talkGain=Math.floor(total/PT_PER);
-  const newCarry=total%PT_PER;
-
-  t.talk+=apiMinutes;
-  t.carry=newCarry;
-  t.pts+=talkGain;
-
-  // 仮想日付を1日進める（デバッグ）
-  advanceDebugDate();
-
-  // 次チームのturnStartを更新（今の仮想日付 = 翌日）
-  const nextTeam=(i+1)%4;
-  // 次チームはすでにgameStartからなのでそのまま
-  // 今のチームは次回ターン時のturnStartを更新
-  t.turnStart=G.debugDate; // 翌日以降が次回のこのチームのturnStart
-  save();
-
+  document.getElementById('turnTitle').textContent='🎉 ポイントが付与されました';
   document.getElementById('turnBody').innerHTML=
-    '<span style="color:#888;font-size:11px;">仮想日付: '+endDate+'</span>'
-    +'<br>期間: <strong>'+startDate+'</strong> 〜 <strong>'+endDate+'</strong>'
-    +'<br>発話量: <strong>'+apiMinutes.toLocaleString()+'分</strong>'
-    +((total-apiMinutes)>0?'<br>持ち越し: <strong>'+(total-apiMinutes)+'分</strong> → 合計 <strong>'+total+'分</strong>':'')
-    +'<br>獲得pt: <strong>'+talkGain+'pt</strong>'
-    +'<br>次回持ち越し: <strong>'+newCarry+'分</strong>';
+    TNAME[i]+'に本日 <strong style="color:'+TCOL[i]+';font-size:18px;">'+pts+' PT</strong> が付与されました。'
+    +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（50分ごとに1PT）</span>'
+    +'<br><span style="font-size:11px;color:#ff8c42;">本日中に使用しないと没収されます</span>';
   document.getElementById('turnPts').style.color=TCOL[i];
-  document.getElementById('turnPts').textContent='+'+talkGain+' PT 付与！';
-  render();
+  document.getElementById('turnPts').textContent='+'+pts+' PT';
+  document.getElementById('turnOv').classList.add('show');
 }
 
 document.getElementById('turnOk').addEventListener('click',()=>{
   document.getElementById('turnOv').classList.remove('show');
-  playBGM(G.cur);
+  if(myTeam>=0) playBGM(myTeam);
 });
 
 // --- マスクリック ---
@@ -512,30 +482,43 @@ async function clickCell(r,c){
   }
 
   const own=G.board[r][c];
-  if(own===G.cur){setMsg('自分の陣地！');return;}
+  if(own===myTeam){setMsg('自分の陣地！');return;}
   if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
   const empty=own===-1;
   const isBonus=G.bonus.hasOwnProperty(r+','+c);
   const cost=empty?1:2;
 
-  // 確認ダイアログを開く前にロックをセット
+  // 確認ダイアログ + 1分タイムアウトでログインへ戻す
   function lockAndConfirm(title, body, onOk){
-    G._lock={until: Date.now()+30000};
+    G._lock={until: Date.now()+60000};
     save();
+    let _lockTimer=setTimeout(()=>{
+      // 1分無操作 → ダイアログを閉じてログイン画面へ
+      document.getElementById('confirmOv').classList.remove('show');
+      delete G._lock; save();
+      myTeam=-1;
+      localStorage.removeItem('tb3_myTeam');
+      document.getElementById('loginPw').value='';
+      document.getElementById('loginErr').style.display='none';
+      document.getElementById('loginOv').classList.add('show');
+      setMsg('操作タイムアウト — 再ログインしてください');
+    },60000);
     showConfirm(title, body, ()=>{
+      clearTimeout(_lockTimer);
       delete G._lock;
       onOk();
     });
     document.getElementById('confCancel').addEventListener('click',()=>{
+      clearTimeout(_lockTimer);
       delete G._lock; save();
     },{once:true});
   }
 
-  if(G.teams[G.cur].pts<cost){
-    if(!empty&&G.teams[G.cur].pts>=1){
+  if(G.teams[myTeam].pts<cost){
+    if(!empty&&G.teams[myTeam].pts>=1){
       lockAndConfirm('空白化する？',
-        TNAME[G.cur]+' → 空白<br>消費: <strong>1 PT</strong>',
-        ()=>{G.board[r][c]=-1;G.teams[G.cur].pts--;G.pending=null;setMsg('空白化（1pt消費）');save();render();});
+        TNAME[myTeam]+' → 空白<br>消費: <strong>1 PT</strong>',
+        ()=>{G.board[r][c]=-1;G.teams[myTeam].pts--;G.pending=null;setMsg('空白化（1pt消費）');save();render();});
     } else {
       setMsg('ポイント不足（必要'+cost+'pt）');
     }
@@ -548,10 +531,10 @@ async function clickCell(r,c){
     targetLabel+'を取得？',
     '消費: <strong>'+cost+' PT</strong>'+bonusNote,
     ()=>{
-      G.board[r][c]=G.cur;
-      G.teams[G.cur].pts-=cost;
+      G.board[r][c]=myTeam;
+      G.teams[myTeam].pts-=cost;
       G.pending=null;
-      if(isBonus){G.bonus[r+','+c]=G.cur;G.teams[G.cur].pts+=3;setMsg('★ボーナス！3PT獲得（'+cost+'pt消費）');}
+      if(isBonus){G.bonus[r+','+c]=myTeam;G.teams[myTeam].pts+=3;setMsg('★ボーナス！3PT獲得（'+cost+'pt消費）');}
       else setMsg('取得！（'+cost+'pt消費）');
       save();render();
     }
@@ -659,18 +642,22 @@ function updateBgHighlight(teamIdx){
 }
 
 function render(){
-  if(G.cur!==undefined) updateBgHighlight(G.cur);
+  if(myTeam>=0) updateBgHighlight(myTeam);
   document.getElementById('stats').innerHTML=G.teams.map((t,i)=>`
-    <div class="sc${i===G.cur?' active':''}">
+    <div class="sc${i===myTeam?' active':''}">
       <div class="sc-name">${t.name}</div>
       <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
       <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
-      <div class="sc-row"><span>総会話量</span><span>${t.talk.toLocaleString()}分</span></div>
-      <div class="sc-row"><span>持ち越し</span><span>${t.carry||0}分</span></div>
+      <div class="sc-row"><span>持ち越し</span><span>${t.talkCarry||t.carry||0}分</span></div>
     </div>`).join('');
 
-  document.getElementById('turnbox').innerHTML=
-    '<span style="display:inline-block;width:8px;height:8px;background:'+TCOL[G.cur]+';margin-right:6px;"></span>'+TNAME[G.cur]+' のターン';
+  // ログイン中チームを表示
+  if(myTeam>=0){
+    document.getElementById('turnbox').innerHTML=
+      '<span style="display:inline-block;width:8px;height:8px;background:'+TCOL[myTeam]+';border-radius:50%;margin-right:6px;"></span>'+TNAME[myTeam]+' でプレイ中';
+  } else {
+    document.getElementById('turnbox').innerHTML='👁 観戦中';
+  }
 
   const boardEl=document.getElementById('board');
   boardEl.innerHTML='';
@@ -687,7 +674,7 @@ function render(){
       else cls+=' t'+own;
       if(isBonus) cls+=' bonus';
       if(isStart) cls+=' first-fan';
-      if(adj.has(r*COLS+c)&&own!==G.cur) cls+=' adjacent-hint';
+      if(adj.has(r*COLS+c)&&own!==myTeam) cls+=' adjacent-hint';
       cell.className=cls;
       makeFanCell(cell, own, isBonus);
       cell.addEventListener('click',()=>clickCell(r,c));
@@ -706,7 +693,7 @@ function showGame(){
 }
 
 function canOperate(){
-  return myTeam===G.cur;
+  return myTeam>=0; // ログイン中なら全チーム常時操作可能
 }
 
 function showNotMyTurn(){
@@ -753,19 +740,30 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   requestAnimationFrame(initSearchlights);
 });
 
-document.getElementById('addptBtn').addEventListener('click',()=>{
-  if(!canOperate()){showNotMyTurn();return;}
-  G.teams[G.cur].pts++;save();render();
-});
-
-document.getElementById('nextBtn').addEventListener('click',()=>{
-  if(!canOperate()){showNotMyTurn();return;}
-  G.teams[G.cur].pts=0;
-  G.pending=null;
-  G.cur=(G.cur+1)%4;
-  G.lastDate=today();
-  save();
-  showTurnPopup(false);
+// 管理者が会話時間を入力してPT付与
+document.getElementById('awardPtsBtn').addEventListener('click',()=>{
+  const inputs=[
+    parseInt(document.getElementById('talkA').value)||0,
+    parseInt(document.getElementById('talkB').value)||0,
+    parseInt(document.getElementById('talkC').value)||0,
+    parseInt(document.getElementById('talkD').value)||0,
+  ];
+  // 全チームのPTを没収して新規付与
+  G.teams.forEach((t,i)=>{
+    t.pts=0; // 前日分没収
+    const carry=t.talkCarry||t.carry||0;
+    const total=carry+inputs[i];
+    const newPts=Math.floor(total/50);
+    t.pts=newPts;
+    t.talkCarry=total%50;
+    t.talkMins=inputs[i];
+    t.awardedToday=newPts;
+  });
+  G.lastAwardDate=today();
+  save();render();
+  // 入力欄をクリア
+  ['talkA','talkB','talkC','talkD'].forEach(id=>{document.getElementById(id).value='';});
+  alert('PT付与完了！各チームのログイン時に通知されます。');
 });
 
 // ログイン処理
@@ -781,7 +779,16 @@ document.getElementById('loginOk').addEventListener('click',()=>{
   document.getElementById('loginOv').classList.remove('show');
   setMsg('');
   render();
-  playBGM(G.cur);
+  playBGM(myTeam);
+  // 本日初回ログイン時にPT付与通知
+  const t=G.teams[myTeam];
+  if(G.lastAwardDate===today()&&(t.awardedToday||0)>0){
+    // 通知済みフラグがなければ表示
+    if(!t._notified){
+      t._notified=true;
+      setTimeout(()=>showAwardPopup(myTeam, t.awardedToday, t.talkCarry||0), 400);
+    }
+  }
 });
 
 document.getElementById('loginWatch').addEventListener('click',()=>{
@@ -798,7 +805,7 @@ document.getElementById('bgmBtn').addEventListener('click',()=>{
   const btn = document.getElementById('bgmBtn');
   if(bgmMuted){
     bgmMuted = false;
-    playBGM(G.cur);
+    playBGM(myTeam>=0?myTeam:0);
     btn.textContent='♪ BGM OFF';
   } else {
     bgmMuted = true;
@@ -864,16 +871,17 @@ document.getElementById('game').style.display='flex';
 
 setInterval(()=>{
   if(G.board&&G.board.length){
-    const now=new Date();
     const t=today();
-    if(now.getHours()>=9&&G.lastDate!==t){
-      // 前チームの未使用ptを没収
-      G.teams[G.cur].pts=0;
-      G.pending=null;
-      G.cur=(G.cur+1)%4;
+    if(G.lastDate!==t){
+      // 日付変わり → 全チームの未使用PTを没収、通知フラグをリセット
+      G.teams.forEach(team=>{
+        team.pts=0;
+        team.awardedToday=0;
+        team._notified=false;
+      });
       G.lastDate=t;
       save();
-      render();showTurnPopup(true);
+      render();
     }
   }
 },60000);
