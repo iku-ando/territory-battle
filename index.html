@@ -133,10 +133,10 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <div style="margin-bottom:20px;">
       <p style="font-size:12px;color:#aaa;margin-bottom:10px;">各チームのパスワードを設定</p>
       <div class="setup-grid">
-        <div class="team-box"><label style="color:#ff4466;">TEAM A パスワード</label><input type="text" id="pw0" placeholder="例: teamA2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-        <div class="team-box"><label style="color:#44aaff;">TEAM B パスワード</label><input type="text" id="pw1" placeholder="例: teamB2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-        <div class="team-box"><label style="color:#44ff88;">TEAM C パスワード</label><input type="text" id="pw2" placeholder="例: teamC2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
-        <div class="team-box"><label style="color:#ffcc22;">TEAM D パスワード</label><input type="text" id="pw3" placeholder="例: teamD2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#ff4466;">The Breakpoints PW</label><input type="text" id="pw0" placeholder="例: teamA2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44aaff;">Command Z. PW</label><input type="text" id="pw1" placeholder="例: teamB2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#44ff88;">404 Not Found PW</label><input type="text" id="pw2" placeholder="例: teamC2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
+        <div class="team-box"><label style="color:#ffcc22;">〆切前夜 PW</label><input type="text" id="pw3" placeholder="例: teamD2025" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:6px;width:100%;"></div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;">
@@ -179,10 +179,10 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
   <div class="board-wrap" style="position:relative;"><div class="board" id="board"></div><canvas id="searchlight-canvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:4;"></canvas></div>
 </div>
   <div class="legend">
-    <div class="lg"><div class="lbox" style="background:#ff4466;"></div>Team A</div>
-    <div class="lg"><div class="lbox" style="background:#44aaff;"></div>Team B</div>
-    <div class="lg"><div class="lbox" style="background:#44ff88;"></div>Team C</div>
-    <div class="lg"><div class="lbox" style="background:#ffcc22;"></div>Team D</div>
+    <div class="lg"><div class="lbox" style="background:#ff4466;"></div>The Breakpoints</div>
+    <div class="lg"><div class="lbox" style="background:#44aaff;"></div>Command Z.</div>
+    <div class="lg"><div class="lbox" style="background:#44ff88;"></div>404 Not Found</div>
+    <div class="lg"><div class="lbox" style="background:#ffcc22;"></div>〆切前夜</div>
     <div class="lg"><div class="lbox" style="background:#555;"></div>空白</div>
     <div class="lg"><div class="lbox" style="background:#fff;border:1px solid #aaa;display:flex;align-items:center;justify-content:center;font-size:8px;color:#333;font-weight:bold;">5</div>ボーナス</div>
   </div>
@@ -244,7 +244,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 <script>
 const COLS=10,ROWS=10;
-const TNAME=['TEAM A','TEAM B','TEAM C','TEAM D'];
+const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
 const PT_PER=50; // 50分で1pt
 const API_BASE='/api/stats';
