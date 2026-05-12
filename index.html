@@ -335,6 +335,8 @@ function fillCorners(){
 const API_URL='/api/game-state';
 
 function save(){
+  // ローカルタイムスタンプを付与（同期判定用）
+  G._savedAt = Date.now();
   // localStorageにバックアップ
   try{
     localStorage.setItem('tb3',JSON.stringify(G));
@@ -345,6 +347,9 @@ function save(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(G)
+  }).then(async r=>{
+    // サーバーが返したupdated_atを記録
+    try{const d=await r.json();if(d.success){};}catch(e){}
   }).catch(()=>{});
 }
 
@@ -851,6 +856,8 @@ setInterval(async()=>{
   const latest=await loadFromServer();
   if(!latest||!latest.board) return;
   if(latest.updated_at&&G.updated_at&&latest.updated_at<=G.updated_at) return;
+  // 直近5秒以内に自分が保存した場合はスキップ（自分の操作を上書きしない）
+  if(G._savedAt&&Date.now()-G._savedAt<5000) return;
   G=latest;
   G.bonus=G.bonus||{};
   sanitizeLoadedGame();
