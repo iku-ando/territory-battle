@@ -354,6 +354,7 @@ async function awardDailyPoints(fetchDate){
     t.pts=newPts;
     t.talkCarry=total%PT_PER;
     t.talkMins=mins;
+    t.talkTotal=(t.talkTotal||0)+mins;
     t.awardedToday=newPts;
   });
   G.lastAwardDate=fetchDate;
@@ -405,8 +406,9 @@ function initG(members, startDate, passwords){
     members:1,
     talk:0,
     carry:0,
-    talkMins:0,    // 管理者が入力する昨日の会話時間（分）
-    talkCarry:0,   // 50分未満の端数持ち越し（分）
+    talkMins:0,    // 直近付与日の会話時間（分）
+    talkCarry:0,   // 端数持ち越し（分）
+    talkTotal:0,   // 開始日からの累計会話時間（分）
     awardedToday:0,// 本日付与PT数（通知用）
   }));
   G.cur=0; // 後方互換のため残す（ゲームロジックでは不使用）
@@ -445,6 +447,7 @@ function sanitizeLoadedGame(){
     t.name=TNAME[i]; // 常に最新チーム名で上書き
     if(t.talkCarry===undefined) t.talkCarry=t.carry||0;
     if(t.talkMins===undefined) t.talkMins=0;
+    if(t.talkTotal===undefined) t.talkTotal=0;
     if(t.awardedToday===undefined) t.awardedToday=0;
   });
   // ボードサイズ不整合（旧バージョン保存データ）は盤面を再初期化
@@ -1001,6 +1004,7 @@ function render(){
       <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
       <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
       <div class="sc-row"><span>持ち越し</span><span>${t.talkCarry||t.carry||0}分</span></div>
+      <div class="sc-row"><span>総会話量</span><span>${t.talkTotal||0}分</span></div>
     </div>`).join('');
 
   // ログイン中チームを表示
