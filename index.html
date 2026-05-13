@@ -47,8 +47,8 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 /* BOARD */
 .board-wrap{background:#06060f;border:2px solid #1a1a3a;padding:10px;overflow-x:auto;width:fit-content;}
-.board{display:grid;grid-template-columns:repeat(10,56px);gap:2px;width:fit-content;}
-.cell{width:56px;height:56px;cursor:pointer;position:relative;overflow:hidden;image-rendering:pixelated;}
+.board{display:grid;grid-template-columns:repeat(12,46px);gap:2px;width:fit-content;}
+.cell{width:46px;height:46px;cursor:pointer;position:relative;overflow:hidden;image-rendering:pixelated;}
 .cell:hover{filter:brightness(1.25);}
 
 /* ライブハウス背景 */
@@ -66,7 +66,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .cell.adjacent-hint{outline:1px dashed rgba(255,255,255,0.3);outline-offset:-1px;}
 
 /* ドットキャラSVG共通 */
-.fan-svg{position:absolute;top:0;left:0;width:56px;height:56px;image-rendering:pixelated;}
+.fan-svg{position:absolute;top:0;left:0;width:46px;height:46px;image-rendering:pixelated;}
 
 /* サイリウムアニメ */
 @keyframes cy-sway{0%,100%{transform-origin:bottom center;transform:rotate(-22deg);}50%{transform-origin:bottom center;transform:rotate(22deg);}}
@@ -302,7 +302,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 </div>
 
 <script>
-const COLS=10,ROWS=10;
+const COLS=12,ROWS=12;
 const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
 const PT_PER=50; // 50分で1pt
@@ -389,7 +389,7 @@ async function checkAndAwardDaily(){
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
 // ボーナスマス固定位置（10x10、180°対称・四隅除外）
-const BONUS_POS_FIXED = [[2,3],[7,6],[3,6],[6,3]];
+const BONUS_POS_FIXED = [[3,4],[8,7],[4,8],[7,3]]; // 12x12用・180°対称
 function genBonusPos(){ return BONUS_POS_FIXED; }
 
 let G={};
@@ -934,10 +934,10 @@ function makeFanCell(cell, team, isBonus) {
   cell.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'position:relative;width:56px;height:56px;';
+  wrapper.style.cssText = 'position:relative;width:46px;height:46px;';
 
   // 共通スタイル
-  const commonStyle = 'position:absolute;top:0;left:0;width:56px;height:56px;object-fit:contain;image-rendering:pixelated;';
+  const commonStyle = 'position:absolute;top:0;left:0;width:46px;height:46px;object-fit:contain;image-rendering:pixelated;';
 
   if (hasCy) {
     // 2枚重ねて片方をdisplay:none切り替え（チラつきなし）
