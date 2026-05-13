@@ -332,9 +332,6 @@ async function awardDailyPoints(fetchDate){
 function showLoginAwardNotif(){
   if(myTeam<0) return;
   if(G.lastAwardDate!==today()) return;
-  const notifKey='tb3_notified_'+today()+'_'+myTeam;
-  if(localStorage.getItem(notifKey)) return;
-  localStorage.setItem(notifKey,'1');
   const t=G.teams[myTeam];
   setTimeout(()=>showAwardPopup(myTeam, t.awardedToday||0, t.talkCarry||0), 400);
 }
@@ -1006,6 +1003,7 @@ document.getElementById('bgmBtn').addEventListener('click',()=>{
 });
 document.getElementById('reloginBtn').addEventListener('click',()=>{
   myTeam=-1;
+  _gameReady=false;
   localStorage.removeItem('tb3_myTeam');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
