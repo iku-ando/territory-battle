@@ -566,6 +566,7 @@ function switchToWatch(){
   G.activeTeam=-1;
   myTeam=-1; _gameReady=false;
   pendingCells=[]; updateMultiBar();
+  _prevActiveTeam=-1; // 自分が終了したのでターン交代ポップを出さない
   save();
   localStorage.setItem('tb3_myTeam', -1);
   setMsg('👁 観戦モードで閲覧中');
