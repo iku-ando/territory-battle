@@ -517,13 +517,22 @@ document.getElementById('zeroOk').addEventListener('click',()=>{
 function showAwardPopup(teamIdx, pts, carry){
   const i=teamIdx;
   document.getElementById('turnTitle').style.color=TCOL[i];
-  document.getElementById('turnTitle').textContent='🎉 ポイントが付与されました';
-  document.getElementById('turnBody').innerHTML=
-    TNAME[i]+'に本日 <strong style="color:'+TCOL[i]+';font-size:18px;">'+pts+' PT</strong> が付与されました。'
-    +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（50分ごとに1PT）</span>'
-    +'<br><span style="font-size:11px;color:#ff8c42;">本日中に使用しないと没収されます</span>';
-  document.getElementById('turnPts').style.color=TCOL[i];
-  document.getElementById('turnPts').textContent='+'+pts+' PT';
+  if(pts>0){
+    document.getElementById('turnTitle').textContent='🎉 ポイントが付与されました';
+    document.getElementById('turnBody').innerHTML=
+      TNAME[i]+'に本日 <strong style="color:'+TCOL[i]+';font-size:18px;">'+pts+' PT</strong> が付与されました。'
+      +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（50分ごとに1PT）</span>'
+      +'<br><span style="font-size:11px;color:#ff8c42;">本日中に使用しないと没収されます</span>';
+    document.getElementById('turnPts').style.color=TCOL[i];
+    document.getElementById('turnPts').textContent='+'+pts+' PT';
+  } else {
+    document.getElementById('turnTitle').textContent='📭 本日のポイントはありませんでした';
+    document.getElementById('turnBody').innerHTML=
+      '前日の会話が50分未満でした。'
+      +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（50分ごとに1PT）</span>';
+    document.getElementById('turnPts').style.color='#aaa';
+    document.getElementById('turnPts').textContent='0 PT';
+  }
   document.getElementById('turnOv').classList.add('show');
 }
 
