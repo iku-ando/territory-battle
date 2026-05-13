@@ -735,7 +735,7 @@ async function clickCell(r,c){
   if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
 
   const empty=own===-1;
-  const isBonus=G.bonus.hasOwnProperty(r+','+c);
+  const isBonus=G.bonus.hasOwnProperty(r+','+c)||START_CELLS.has(r+','+c);
   const cost=empty?1:2;
 
   // ポイント不足チェック（選択済み分も含む）
@@ -1018,7 +1018,7 @@ function render(){
     for(let c=0;c<COLS;c++){
       const own=G.board[r][c];
       const key=r+','+c;
-      const isBonus=G.bonus.hasOwnProperty(key);
+      const isBonus=G.bonus.hasOwnProperty(key)||START_CELLS.has(key);
       const isStart=START_CELLS.has(key);
       const cell=document.createElement('div');
       let cls='cell';
