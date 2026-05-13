@@ -388,8 +388,8 @@ async function checkAndAwardDaily(){
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
-// ボーナスマス固定位置（12x12中央・各チームから均等距離=10歩）
-const BONUS_POS_FIXED = [[5,5],[5,6],[6,5],[6,6]];
+// ボーナスマス固定位置（端から4x4・各チームから均等距離=6歩）
+const BONUS_POS_FIXED = [[3,3],[3,8],[8,3],[8,8]];
 function genBonusPos(){ return BONUS_POS_FIXED; }
 
 let G={};
