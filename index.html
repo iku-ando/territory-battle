@@ -1359,20 +1359,16 @@ document.getElementById('game').style.display='flex';
     localStorage.removeItem('tb3_myTeam');
   }
   if(_saved&&_saved.board&&_saved.teams){
-    document.getElementById('resumeBtn').style.display='inline-block';
-    const savedMyTeam=localStorage.getItem('tb3_myTeam');
-    if(savedMyTeam!==null){
-      myTeam=parseInt(savedMyTeam);
-      G=_saved;
-      G.bonus=G.bonus||{};
-      G.passwords=G.passwords||['','','',''];
-      sanitizeLoadedGame();
-      render();
-      requestAnimationFrame(initSearchlights);
-    }
-    // 起動時に自動PT付与チェック
+    // 常に閲覧モードで開始（ポップアップなし）
+    myTeam=-1;
+    localStorage.setItem('tb3_myTeam','-1');
+    G=_saved;
+    G.bonus=G.bonus||{};
+    G.passwords=G.passwords||['','','',''];
+    sanitizeLoadedGame();
     await checkAndAwardDaily();
-    document.getElementById('loginOv').classList.add('show');
+    render();
+    requestAnimationFrame(initSearchlights);
   } else {
     // ゲーム未設定時は管理者設定を開く
     document.getElementById('adminOv').classList.add('show');
