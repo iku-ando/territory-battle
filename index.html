@@ -111,8 +111,6 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .cap-banner-inner::before{content:'';position:absolute;top:0;left:-60%;width:35%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);animation:banner-shine .7s ease-out .25s forwards;z-index:1;}
 .cap-banner-fans{display:flex;align-items:center;gap:4px;z-index:2;}
 .cap-banner-fans img{width:44px;height:44px;image-rendering:pixelated;animation:banner-fan-bob .5s ease-in-out infinite;}
-.cap-banner-fans img:nth-child(2){animation-delay:.1s;}
-.cap-banner-fans img:nth-child(3){animation-delay:.2s;}
 .cap-banner-center{text-align:center;flex:1;z-index:2;padding:0 20px;}
 .cap-banner-teamname{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--bc);opacity:.85;margin-bottom:3px;}
 .cap-banner-title{font-family:'Syne',sans-serif;font-weight:800;letter-spacing:2px;color:#fff;text-shadow:0 0 20px var(--bc),0 0 40px var(--bc);animation:banner-title-in .2s ease-out .1s both;}
@@ -676,7 +674,7 @@ function setMsg(t){document.getElementById('msg').textContent=t;}
 
 // パチンコ帯エフェクト
 let _bannerActive=false;
-function showBannerEffect(teamIdx, isBonus, count){
+function showBannerEffect(teamIdx, isBonus, count, pts){
   if(_bannerActive) return;
   _bannerActive=true;
   const col=TCOL[teamIdx];
@@ -684,6 +682,8 @@ function showBannerEffect(teamIdx, isBonus, count){
   const imgSrc=IMGS['t'+teamIdx][0];
   const title=isBonus?'★ コアファン獲得！':(count>1?count+'マス ファン獲得！':'ファン獲得！');
   const sub=count>1?'MULTI GET':'FAN GET';
+  // 消費PTに応じてファン数を決定（最小1・最大6）
+  const fanCount=Math.min(Math.max(1, pts||1), 6);
 
   // 暗転バックドロップ（他チームのファンが透けないように）
   const backdrop=document.createElement('div');
@@ -693,19 +693,17 @@ function showBannerEffect(teamIdx, isBonus, count){
   const banner=document.createElement('div');
   banner.className='cap-banner';
   banner.style.setProperty('--bc', col);
+  const fanImgs=Array.from({length:fanCount},(_,i)=>
+    `<img src="${imgSrc}" style="animation-delay:${i*80}ms">`).join('');
   banner.innerHTML=`
     <div class="cap-banner-inner">
-      <div class="cap-banner-fans">
-        <img src="${imgSrc}"><img src="${imgSrc}"><img src="${imgSrc}">
-      </div>
+      <div class="cap-banner-fans">${fanImgs}</div>
       <div class="cap-banner-center">
         <div class="cap-banner-teamname">${name}</div>
         <div class="cap-banner-title" style="font-size:${isBonus?28:24}px">${title}</div>
         <div class="cap-banner-sub">${sub}</div>
       </div>
-      <div class="cap-banner-fans">
-        <img src="${imgSrc}"><img src="${imgSrc}"><img src="${imgSrc}">
-      </div>
+      <div class="cap-banner-fans">${fanImgs}</div>
     </div>`;
   document.body.appendChild(banner);
 
@@ -1079,7 +1077,7 @@ document.getElementById('multiOk').addEventListener('click',()=>{
       updateMultiBar();
       save(); render();
       const hasBonus=captured.some(p=>p.isBonus);
-      showBannerEffect(myTeam, hasBonus, captured.length);
+      showBannerEffect(myTeam, hasBonus, captured.length, net);
       captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
     }
   );
