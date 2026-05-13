@@ -559,19 +559,10 @@ function showConfirm(title, body, onOk, showCancel){
 }
 
 // --- pt=0通知 → 観戦モードへ ---
-function showZeroPopup(){
-  const i=myTeam>=0?myTeam:0;
-  document.getElementById('zeroTitle').style.color=TCOL[i];
-  document.getElementById('zeroTitle').textContent='本日のポイントをすべて使いました';
-  document.getElementById('zeroBody').innerHTML=
-    '<strong>他チームに行動ターンが移ります。</strong><br>'
-    +'<span style="font-size:11px;color:#aaa;">明日また新しいポイントが付与されます。</span>';
-  document.getElementById('zeroOv').classList.add('show');
-}
-
-document.getElementById('zeroOk').addEventListener('click',()=>{
+let _zeroTimer=null;
+function switchToWatch(){
+  clearInterval(_zeroTimer); _zeroTimer=null;
   document.getElementById('zeroOv').classList.remove('show');
-  // 観戦モードへ移行・ターンを解放
   G.activeTeam=-1;
   myTeam=-1; _gameReady=false;
   pendingCells=[]; updateMultiBar();
@@ -579,7 +570,27 @@ document.getElementById('zeroOk').addEventListener('click',()=>{
   localStorage.setItem('tb3_myTeam', -1);
   setMsg('👁 観戦モードで閲覧中');
   render();
-});
+}
+
+function showZeroPopup(){
+  const i=myTeam>=0?myTeam:0;
+  document.getElementById('zeroTitle').style.color=TCOL[i];
+  document.getElementById('zeroTitle').textContent='本日のポイントをすべて使いました';
+  let sec=15;
+  document.getElementById('zeroBody').innerHTML=
+    '<strong>他チームに行動ターンが移ります。</strong><br>'
+    +'<span style="font-size:11px;color:#aaa;">明日また新しいポイントが付与されます。</span>'
+    +'<div id="zeroCount" style="margin-top:10px;font-size:13px;color:#ffaa44;">'+sec+'秒後に自動で観戦モードへ</div>';
+  document.getElementById('zeroOv').classList.add('show');
+  _zeroTimer=setInterval(()=>{
+    sec--;
+    const el=document.getElementById('zeroCount');
+    if(el) el.textContent=sec+'秒後に自動で観戦モードへ';
+    if(sec<=0) switchToWatch();
+  },1000);
+}
+
+document.getElementById('zeroOk').addEventListener('click',()=>switchToWatch());
 
 // --- ターン交代通知（観戦中デバイスへ）---
 function showTurnChangePopup(prevTeamIdx){
