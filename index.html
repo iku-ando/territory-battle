@@ -1147,6 +1147,19 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
   render();
   playBGM(myTeam);
   showLoginAwardNotif();
+  // 2秒後にactiveTeamが上書きされていないか再確認（同時ログイン競合対策）
+  setTimeout(async()=>{
+    if(myTeam<0) return; // すでに観戦モードなら不要
+    const recheck=await loadFromServer();
+    if(recheck && recheck.activeTeam>=0 && recheck.activeTeam!==myTeam){
+      myTeam=-1; _gameReady=false;
+      G.activeTeam=recheck.activeTeam;
+      pendingCells=[]; updateMultiBar();
+      localStorage.setItem('tb3_myTeam', -1);
+      setMsg('👁 '+TNAME[recheck.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました');
+      render();
+    }
+  }, 2000);
 });
 
 // --- 複数選択の確定・キャンセル ---
