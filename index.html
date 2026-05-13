@@ -318,11 +318,22 @@ async function awardDailyPoints(fetchDate){
 
 // 自動PT付与チェック（起動時・毎分）
 // 今日まだ付与されていなければ自動実行
+function showLoginAwardNotif(){
+  if(myTeam<0) return;
+  if(G.lastAwardDate!==today()) return;
+  const notifKey='tb3_notified_'+today()+'_'+myTeam;
+  if(localStorage.getItem(notifKey)) return;
+  localStorage.setItem(notifKey,'1');
+  const t=G.teams[myTeam];
+  setTimeout(()=>showAwardPopup(myTeam, t.awardedToday||0, t.talkCarry||0), 400);
+}
+
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
   const t=today();
   if(G.lastAwardDate===t) return; // 今日はすでに付与済み
   await awardDailyPoints(t);
+  showLoginAwardNotif(); // ログイン中なら付与通知を出す
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -895,12 +906,7 @@ document.getElementById('loginOk').addEventListener('click',()=>{
   render();
   playBGM(myTeam);
   // 本日初回ログイン時にPT付与通知（デバイスごとにlocalStorageで管理）
-  const t=G.teams[myTeam];
-  const notifKey='tb3_notified_'+today()+'_'+myTeam;
-  if(G.lastAwardDate===today()&&(t.awardedToday||0)>0&&!localStorage.getItem(notifKey)){
-    localStorage.setItem(notifKey,'1');
-    setTimeout(()=>showAwardPopup(myTeam, t.awardedToday, t.talkCarry||0), 400);
-  }
+  showLoginAwardNotif();
 });
 
 document.getElementById('loginWatch').addEventListener('click',()=>{
