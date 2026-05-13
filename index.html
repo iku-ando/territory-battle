@@ -970,15 +970,15 @@ function makeFanCell(cell, team, isBonus) {
     wrapper.appendChild(img);
   }
 
-  // ボーナス★
+  cell.appendChild(wrapper);
+
+  // ボーナス★ — wrapperの外・cell直下に置くことで画像に隠れない
   if (isBonus) {
     const star = document.createElement('div');
     star.textContent = '★';
-    star.style.cssText = 'position:absolute;top:2px;left:3px;font-size:9px;color:rgba(255,215,0,0.95);font-family:monospace;z-index:3;animation:bonus-pulse .9s ease-in-out infinite;pointer-events:none;';
-    wrapper.appendChild(star);
+    star.style.cssText = 'position:absolute;top:2px;left:3px;font-size:9px;color:rgba(255,215,0,0.95);font-family:monospace;z-index:10;animation:bonus-pulse .9s ease-in-out infinite;pointer-events:none;';
+    cell.appendChild(star);
   }
-
-  cell.appendChild(wrapper);
 }
 
 function makeFanSVG(team, isBonus) { return ''; }
