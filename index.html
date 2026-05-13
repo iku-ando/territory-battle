@@ -1134,6 +1134,16 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
     render();
     return;
   }
+  // 本日の行動が終了しているか確認（PT付与済みで使い切った場合）
+  const teamState=(latest||G).teams&&(latest||G).teams[idx];
+  if(teamState && teamState.pts<=0 && (teamState.awardedToday||0)>0){
+    myTeam=-1; _gameReady=false;
+    localStorage.setItem('tb3_myTeam', -1);
+    document.getElementById('loginOv').classList.remove('show');
+    setMsg('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    render();
+    return;
+  }
   // ログイン確定
   myTeam=idx;
   _gameReady=true;
