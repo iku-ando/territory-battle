@@ -74,16 +74,21 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 @keyframes cy-glow{0%,100%{opacity:.75;}50%{opacity:1;}}
 @keyframes bonus-pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
 @keyframes stand-breath{0%,100%{transform:translateY(0);}50%{transform:translateY(-1px);}}
-@keyframes cap-burst{0%{transform:translate(-50%,-50%) scale(0);opacity:.9;}100%{transform:translate(-50%,-50%) scale(4);opacity:0;}}
-@keyframes cap-ring{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(3.5);opacity:0;}}
-@keyframes cap-text{0%{transform:translate(-50%,0) scale(.6);opacity:1;}60%{transform:translate(-50%,-52px) scale(1.15);opacity:1;}100%{transform:translate(-50%,-80px) scale(1);opacity:0;}}
-@keyframes cap-spark{0%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(var(--sx),var(--sy)) scale(0);opacity:0;}}
-@keyframes cap-card{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px currentColor,0 0 20px 6px currentColor;}}
+@keyframes cap-burst{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(6);opacity:0;}}
+@keyframes cap-ring{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(5);opacity:0;}}
+@keyframes cap-ring-lg{0%{transform:translate(-50%,-50%) scale(0);opacity:.75;}100%{transform:translate(-50%,-50%) scale(9);opacity:0;}}
+@keyframes cap-text{0%{transform:translate(-50%,0) scale(.5);opacity:1;}55%{transform:translate(-50%,-64px) scale(1.35);opacity:1;}100%{transform:translate(-50%,-110px) scale(1.1);opacity:0;}}
+@keyframes cap-spark{0%{transform:translate(-50%,-50%) scale(1.5);opacity:1;}100%{transform:translate(var(--sx),var(--sy)) scale(0);opacity:0;}}
+@keyframes cap-flash{0%{opacity:0;}18%{opacity:1;}100%{opacity:0;}}
+@keyframes cap-shake{0%,100%{transform:translate(0,0) rotate(0deg);}20%{transform:translate(-5px,2px) rotate(-.4deg);}40%{transform:translate(5px,-3px) rotate(.4deg);}60%{transform:translate(-4px,2px) rotate(-.2deg);}80%{transform:translate(3px,-1px) rotate(.2deg);}}
+@keyframes cap-card{0%,100%{box-shadow:none;}25%{box-shadow:0 0 0 4px currentColor,0 0 32px 14px currentColor;}}
 .cap-wrap{position:fixed;pointer-events:none;z-index:9999;}
-.cap-burst{position:absolute;border-radius:50%;animation:cap-burst .55s cubic-bezier(.2,.8,.4,1) forwards;}
-.cap-ring{position:absolute;border-radius:50%;border:3px solid currentColor;animation:cap-ring .6s ease-out forwards;}
-.cap-text{position:absolute;font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px;white-space:nowrap;animation:cap-text .75s cubic-bezier(.2,.8,.4,1) forwards;text-shadow:0 2px 8px rgba(0,0,0,.6);}
-.cap-spark{position:absolute;width:6px;height:6px;border-radius:50%;animation:cap-spark .5s ease-out forwards;}
+.cap-flash{position:fixed;inset:0;pointer-events:none;z-index:9997;animation:cap-flash .55s ease-out forwards;}
+.cap-burst{position:absolute;border-radius:50%;animation:cap-burst .65s cubic-bezier(.15,.85,.35,1) forwards;}
+.cap-ring{position:absolute;border-radius:50%;border:3px solid currentColor;animation:cap-ring .75s ease-out forwards;}
+.cap-ring-lg{position:absolute;border-radius:50%;border:2px solid currentColor;animation:cap-ring-lg 1s ease-out forwards;}
+.cap-text{position:absolute;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:2px;white-space:nowrap;animation:cap-text .95s cubic-bezier(.15,.85,.35,1) forwards;text-shadow:0 0 20px currentColor,0 2px 10px rgba(0,0,0,.9);}
+.cap-spark{position:absolute;border-radius:50%;animation:cap-spark .65s ease-out forwards;}
 @keyframes sync-spin{to{transform:rotate(360deg)}}
 #syncSpinner{display:none;font-size:13px;opacity:.7;animation:sync-spin .8s linear infinite;}
 
@@ -657,49 +662,82 @@ function showCaptureEffect(r, c, teamIdx, isBonus){
   const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
   const col=TCOL[teamIdx];
 
+  // ── 全画面フラッシュ ──
+  const flash=document.createElement('div');
+  flash.className='cap-flash';
+  flash.style.cssText=`background:${col};opacity:${isBonus?.38:.2};`;
+  document.body.appendChild(flash);
+  setTimeout(()=>flash.remove(), 650);
+
+  // ── ボードを揺らす ──
+  boardEl.style.animation='cap-shake .32s ease-out';
+  setTimeout(()=>boardEl.style.animation='', 380);
+
+  // ── セル自体を白く光らせてからフェード ──
+  cellEl.style.transition='filter .5s ease-out';
+  cellEl.style.filter='brightness(4) saturate(0)';
+  setTimeout(()=>{cellEl.style.filter='brightness(1.5)';
+    setTimeout(()=>{cellEl.style.filter='';cellEl.style.transition='';},400);
+  },80);
+
   const wrap=document.createElement('div');
   wrap.className='cap-wrap';
   wrap.style.cssText=`left:${cx}px;top:${cy}px;`;
 
-  // バースト円
+  // ── バースト円 ──
   const burst=document.createElement('div');
   burst.className='cap-burst';
-  burst.style.cssText=`width:${rect.width}px;height:${rect.height}px;background:${col};opacity:.55;`;
+  burst.style.cssText=`width:${rect.width}px;height:${rect.height}px;background:${col};`;
   wrap.appendChild(burst);
 
-  // リング
+  // ── 波紋リング 1（内側）──
   const ring=document.createElement('div');
   ring.className='cap-ring';
-  ring.style.cssText=`width:${rect.width*.8}px;height:${rect.height*.8}px;color:${col};`;
+  ring.style.cssText=`width:${rect.width}px;height:${rect.height}px;color:${col};`;
   wrap.appendChild(ring);
 
-  // テキスト
+  // ── 波紋リング 2（外側・遅延）──
+  const ring2=document.createElement('div');
+  ring2.className='cap-ring-lg';
+  ring2.style.cssText=`width:${rect.width}px;height:${rect.height}px;color:${col};animation-delay:.1s;`;
+  wrap.appendChild(ring2);
+
+  // ── ボーナスはさらにリング追加 ──
+  if(isBonus){
+    const ring3=document.createElement('div');
+    ring3.className='cap-ring-lg';
+    ring3.style.cssText=`width:${rect.width}px;height:${rect.height}px;color:${col};animation-delay:.22s;opacity:.5;`;
+    wrap.appendChild(ring3);
+  }
+
+  // ── テキスト ──
   const txt=document.createElement('div');
   txt.className='cap-text';
-  txt.style.color=col;
+  txt.style.cssText=`color:${col};font-size:${isBonus?26:19}px;`;
   txt.textContent=isBonus?'★ BONUS!':'GET!';
   wrap.appendChild(txt);
 
-  // スパーク（放射状の小粒）
-  const sparks=8;
-  for(let i=0;i<sparks;i++){
+  // ── スパーク（放射状・サイズランダム）──
+  const sparkCount=isBonus?22:14;
+  for(let i=0;i<sparkCount;i++){
     const sp=document.createElement('div');
     sp.className='cap-spark';
-    const angle=(i/sparks)*Math.PI*2;
-    const dist=isBonus?60:44;
-    sp.style.cssText=`background:${col};--sx:${Math.cos(angle)*dist}px;--sy:${Math.sin(angle)*dist}px;animation-delay:${i*15}ms;`;
+    const angle=(i/sparkCount)*Math.PI*2 + (Math.random()-.5)*.4;
+    const dist=(isBonus?82:58)+Math.random()*22;
+    const sz=2+Math.floor(Math.random()*6);
+    sp.style.cssText=`width:${sz}px;height:${sz}px;background:${col};--sx:${Math.cos(angle)*dist}px;--sy:${Math.sin(angle)*dist}px;animation-delay:${i*8}ms;`;
     wrap.appendChild(sp);
   }
 
   document.body.appendChild(wrap);
-  setTimeout(()=>wrap.remove(), 900);
+  setTimeout(()=>wrap.remove(), 1200);
 
-  // スコアカードをチカッと光らせる
+  // ── スコアカードを強く光らせる ──
   const cards=document.getElementById('stats').querySelectorAll('.sc');
   if(cards[teamIdx]){
     cards[teamIdx].style.color=col;
-    cards[teamIdx].style.animation='cap-card .6s ease-out';
-    setTimeout(()=>{cards[teamIdx].style.animation='';cards[teamIdx].style.color='';},700);
+    cards[teamIdx].style.animation='cap-card .85s ease-out';
+    setTimeout(()=>{cards[teamIdx].style.animation='';cards[teamIdx].style.color='';},950);
   }
 }
 
