@@ -333,7 +333,7 @@ async function checkAndAwardDaily(){
   const t=today();
   if(G.lastAwardDate===t) return; // 今日はすでに付与済み
   await awardDailyPoints(t);
-  showLoginAwardNotif(); // ログイン中なら付与通知を出す
+  if(_gameReady) showLoginAwardNotif(); // ログイン済みの場合のみ通知（起動時はloginOv表示前なのでスキップ）
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -343,6 +343,7 @@ function genBonusPos(){ return BONUS_POS_FIXED; }
 
 let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
+let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 
 function initG(members, startDate, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -909,6 +910,7 @@ document.getElementById('loginOk').addEventListener('click',()=>{
     return;
   }
   myTeam=idx;
+  _gameReady=true;
   localStorage.setItem('tb3_myTeam', myTeam);
   document.getElementById('loginOv').classList.remove('show');
   setMsg('');
