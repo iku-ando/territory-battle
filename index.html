@@ -97,6 +97,24 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .cy-glow{animation:cy-glow .7s ease-in-out infinite;}
 .fan-body{animation:stand-breath 1.2s ease-in-out infinite;}
 .bonus-star{animation:bonus-pulse .8s ease-in-out infinite;}
+/* パチンコ帯エフェクト */
+@keyframes banner-in{0%{transform:translateY(-50%) translateX(110vw);}100%{transform:translateY(-50%) translateX(0);}}
+@keyframes banner-out{0%{transform:translateY(-50%) translateX(0);}100%{transform:translateY(-50%) translateX(-110vw);}}
+@keyframes banner-shine{0%{left:-60%;}100%{left:130%;}}
+@keyframes banner-fan-bob{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-4px) scale(1.08);}}
+@keyframes banner-title-in{0%{opacity:0;transform:scale(1.4);}100%{opacity:1;transform:scale(1);}}
+.cap-banner{position:fixed;left:0;right:0;top:50%;z-index:10000;pointer-events:none;overflow:hidden;animation:banner-in .32s cubic-bezier(.08,.82,.17,1) forwards;}
+.cap-banner-inner{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-top:3px solid var(--bc);border-bottom:3px solid var(--bc);background:rgba(8,6,18,0.97);position:relative;overflow:hidden;box-shadow:0 0 40px var(--bc),0 0 80px rgba(0,0,0,.8);}
+.cap-banner-inner::before{content:'';position:absolute;top:0;left:-60%;width:35%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);animation:banner-shine .7s ease-out .25s forwards;z-index:1;}
+.cap-banner-fans{display:flex;align-items:center;gap:4px;z-index:2;}
+.cap-banner-fans img{width:44px;height:44px;image-rendering:pixelated;animation:banner-fan-bob .5s ease-in-out infinite;}
+.cap-banner-fans img:nth-child(2){animation-delay:.1s;}
+.cap-banner-fans img:nth-child(3){animation-delay:.2s;}
+.cap-banner-center{text-align:center;flex:1;z-index:2;padding:0 20px;}
+.cap-banner-teamname{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--bc);opacity:.85;margin-bottom:3px;}
+.cap-banner-title{font-family:'Syne',sans-serif;font-weight:800;letter-spacing:2px;color:#fff;text-shadow:0 0 20px var(--bc),0 0 40px var(--bc);animation:banner-title-in .2s ease-out .1s both;}
+.cap-banner-sub{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--bc);margin-top:2px;opacity:.8;}
+
 /* 複数選択 */
 .cell.selected{outline:2px solid rgba(255,255,255,0.95);outline-offset:-2px;z-index:2;filter:brightness(1.25);}
 #multiConfirmBar{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);background:rgba(12,9,22,0.96);border:1px solid rgba(255,255,255,0.22);border-radius:20px;padding:8px 16px;z-index:200;align-items:center;gap:10px;font-size:12px;color:#fff;box-shadow:0 4px 24px rgba(0,0,0,0.65);white-space:nowrap;display:none;}
@@ -653,6 +671,42 @@ async function clickCell(r,c){
 
 function setMsg(t){document.getElementById('msg').textContent=t;}
 
+// パチンコ帯エフェクト
+let _bannerActive=false;
+function showBannerEffect(teamIdx, isBonus, count){
+  if(_bannerActive) return;
+  _bannerActive=true;
+  const col=TCOL[teamIdx];
+  const name=TNAME[teamIdx];
+  const imgSrc=IMGS['t'+teamIdx][0];
+  const title=isBonus?'★ コアファン獲得！':(count>1?count+'マス ファン獲得！':'ファン獲得！');
+  const sub=count>1?'MULTI GET':'FAN GET';
+
+  const banner=document.createElement('div');
+  banner.className='cap-banner';
+  banner.style.setProperty('--bc', col);
+  banner.innerHTML=`
+    <div class="cap-banner-inner">
+      <div class="cap-banner-fans">
+        <img src="${imgSrc}"><img src="${imgSrc}"><img src="${imgSrc}">
+      </div>
+      <div class="cap-banner-center">
+        <div class="cap-banner-teamname">${name}</div>
+        <div class="cap-banner-title" style="font-size:${isBonus?28:24}px">${title}</div>
+        <div class="cap-banner-sub">${sub}</div>
+      </div>
+      <div class="cap-banner-fans">
+        <img src="${imgSrc}"><img src="${imgSrc}"><img src="${imgSrc}">
+      </div>
+    </div>`;
+  document.body.appendChild(banner);
+
+  setTimeout(()=>{
+    banner.style.animation='banner-out .35s ease-in forwards';
+    setTimeout(()=>{ banner.remove(); _bannerActive=false; }, 380);
+  }, 1550);
+}
+
 // マス取得エフェクト
 function showCaptureEffect(r, c, teamIdx, isBonus){
   const boardEl=document.getElementById('board');
@@ -1015,6 +1069,8 @@ document.getElementById('multiOk').addEventListener('click',()=>{
       setMsg(msg);
       updateMultiBar();
       save(); render();
+      const hasBonus=captured.some(p=>p.isBonus);
+      showBannerEffect(myTeam, hasBonus, captured.length);
       captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
     }
   );
