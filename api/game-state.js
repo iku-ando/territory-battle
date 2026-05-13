@@ -1,5 +1,5 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
-const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e1b8d-7737-7fcc-b98c-cf0eecffa865';
+const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e20d9-7a39-71a3-b4eb-8983a660e2c5';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
