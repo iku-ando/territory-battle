@@ -100,6 +100,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 /* パチンコ帯エフェクト */
 @keyframes banner-in{0%{transform:translateY(-50%) translateX(110vw);}100%{transform:translateY(-50%) translateX(0);}}
 @keyframes banner-out{0%{transform:translateY(-50%) translateX(0);}100%{transform:translateY(-50%) translateX(-110vw);}}
+@keyframes backdrop-in{0%{opacity:0;}100%{opacity:.82;}}
+@keyframes backdrop-out{0%{opacity:.82;}100%{opacity:0;}}
+.cap-backdrop{position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none;animation:backdrop-in .18s ease-out forwards;}
 @keyframes banner-shine{0%{left:-60%;}100%{left:130%;}}
 @keyframes banner-fan-bob{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-4px) scale(1.08);}}
 @keyframes banner-title-in{0%{opacity:0;transform:scale(1.4);}100%{opacity:1;transform:scale(1);}}
@@ -682,6 +685,11 @@ function showBannerEffect(teamIdx, isBonus, count){
   const title=isBonus?'★ コアファン獲得！':(count>1?count+'マス ファン獲得！':'ファン獲得！');
   const sub=count>1?'MULTI GET':'FAN GET';
 
+  // 暗転バックドロップ（他チームのファンが透けないように）
+  const backdrop=document.createElement('div');
+  backdrop.className='cap-backdrop';
+  document.body.appendChild(backdrop);
+
   const banner=document.createElement('div');
   banner.className='cap-banner';
   banner.style.setProperty('--bc', col);
@@ -703,7 +711,8 @@ function showBannerEffect(teamIdx, isBonus, count){
 
   setTimeout(()=>{
     banner.style.animation='banner-out .35s ease-in forwards';
-    setTimeout(()=>{ banner.remove(); _bannerActive=false; }, 380);
+    backdrop.style.animation='backdrop-out .4s ease-out forwards';
+    setTimeout(()=>{ banner.remove(); backdrop.remove(); _bannerActive=false; }, 420);
   }, 1550);
 }
 
