@@ -715,8 +715,10 @@ function updateMultiBar(){
   const bonusGain=pendingCells.filter(p=>p.isBonus).length*3;
   const net=totalCost-bonusGain;
   const rem=G.teams[myTeam].pts-net;
-  document.getElementById('multiInfo').textContent=
-    pendingCells.length+'マス選択中 / 消費 '+net+' PT（残り '+rem+' PT）';
+  let infoText=pendingCells.length+'マス選択中 / 消費 '+totalCost+' PT';
+  if(bonusGain>0) infoText+=' / ★+'+bonusGain+' PT';
+  infoText+='（残り '+rem+' PT）';
+  document.getElementById('multiInfo').textContent=infoText;
   bar.style.display='flex';
 }
 
@@ -1206,8 +1208,8 @@ document.getElementById('multiOk').addEventListener('click',()=>{
   const bonusGain=bonusCnt*3;
   const net=totalCost-bonusGain;
   const cellsDesc=pendingCells.length+'マスを取得';
-  const body=cellsDesc+' / 消費: <strong>'+net+' PT</strong>'
-    +(bonusCnt?'<br><span style="color:#ffcc22">★ボーナス +'+bonusGain+'PT獲得！</span>':'');
+  const body=cellsDesc+' / 消費: <strong>'+totalCost+' PT</strong>'
+    +(bonusCnt?'<br><span style="color:#ffcc22">★コアファン +'+bonusGain+'PT獲得！（実質'+net+'PT）</span>':'');
   lockAndConfirm(
     pendingCells.length+'マスを確定する？',
     body,
