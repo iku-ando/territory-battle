@@ -333,6 +333,9 @@ function showLoginAwardNotif(){
   if(myTeam<0) return;
   if(G.lastAwardDate!==today()) return;
   const t=G.teams[myTeam];
+  // ポイントが残っている場合のみ表示（使い切った後は出さない）
+  // 0PT付与の場合は初回ログイン時のみ（awardedToday===0かつpts===0）
+  if(t.pts<=0 && (t.awardedToday||0)>0) return;
   setTimeout(()=>showAwardPopup(myTeam, t.awardedToday||0, t.talkCarry||0), 400);
 }
 
