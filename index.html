@@ -613,6 +613,29 @@ function lockAndConfirm(title, body, onOk){
   },{once:true});
 }
 
+// 選択マスの中で孤立したものを除去（自陣or他の選択マス経由で到達不能なもの）
+function pruneOrphanedPending(){
+  const DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
+  // BFS: reachableを反復拡張して連鎖到達できるpendingだけ残す
+  const reachable=new Set();
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(const p of pendingCells){
+      const key=p.r+','+p.c;
+      if(reachable.has(key)) continue;
+      for(const[dr,dc]of DIRS){
+        const nr=p.r+dr, nc=p.c+dc;
+        if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+        if(G.board[nr][nc]===myTeam||reachable.has(nr+','+nc)){
+          reachable.add(key); changed=true; break;
+        }
+      }
+    }
+  }
+  pendingCells=pendingCells.filter(p=>reachable.has(p.r+','+p.c));
+}
+
 // --- 複数選択バーの更新 ---
 function updateMultiBar(){
   const bar=document.getElementById('multiConfirmBar');
@@ -634,6 +657,7 @@ async function clickCell(r,c){
   const pendIdx=pendingCells.findIndex(p=>p.r===r&&p.c===c);
   if(pendIdx!==-1){
     pendingCells.splice(pendIdx,1);
+    pruneOrphanedPending(); // 孤立したマスを除去
     updateMultiBar(); render(); return;
   }
 
