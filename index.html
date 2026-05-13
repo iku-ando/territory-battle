@@ -305,7 +305,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 const COLS=12,ROWS=12;
 const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
-const PT_PER=50; // 50分で1pt
+const PT_PER=80; // 80分で1pt
 const API_BASE='/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
 
@@ -639,8 +639,8 @@ function showAwardPopup(teamIdx, pts, carry){
   } else {
     document.getElementById('turnTitle').textContent='📭 本日のポイントはありませんでした';
     document.getElementById('turnBody').innerHTML=
-      '前日の会話が50分未満でした。'
-      +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（50分ごとに1PT）</span>';
+      '前日の会話が80分未満でした。'
+      +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（80分ごとに1PT）</span>';
     document.getElementById('turnPts').style.color='#aaa';
     document.getElementById('turnPts').textContent='0 PT';
   }
