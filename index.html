@@ -1124,15 +1124,26 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
   }
   // 別チームがアクティブか確認
   const latest=await loadFromServer();
-  const active=(latest||G).activeTeam;
+  const lG=latest||G;
+  let active=lG.activeTeam;
+  // アクティブチームがPT=0なら実質終了 → activeTeamをクリアして通過
   if(active>=0 && active!==idx){
-    // 別チームがプレイ中 → 観戦モードへ
-    myTeam=-1; _gameReady=false;
-    localStorage.setItem('tb3_myTeam', myTeam);
-    document.getElementById('loginOv').classList.remove('show');
-    setMsg('👁 '+TNAME[active]+' がプレイ中 — 観戦モードで閲覧中');
-    render();
-    return;
+    const activeTeamState=lG.teams&&lG.teams[active];
+    const activeDone=activeTeamState&&activeTeamState.pts<=0&&(activeTeamState.awardedToday||0)>0;
+    if(activeDone){
+      // PT使い切り済みなのにactiveTeamが残っている → サーバー側をクリア
+      if(latest) latest.activeTeam=-1;
+      G.activeTeam=-1;
+      active=-1;
+    } else {
+      // 本当にプレイ中 → 観戦モードへ
+      myTeam=-1; _gameReady=false;
+      localStorage.setItem('tb3_myTeam', myTeam);
+      document.getElementById('loginOv').classList.remove('show');
+      setMsg('👁 '+TNAME[active]+' がプレイ中 — 観戦モードで閲覧中');
+      render();
+      return;
+    }
   }
   // 本日の行動が終了しているか確認（PT付与済みで使い切った場合）
   const teamState=(latest||G).teams&&(latest||G).teams[idx];
@@ -1328,6 +1339,15 @@ setInterval(async()=>{
   const curBoard=G.board?JSON.stringify(G.board):'';
   const latestPts=JSON.stringify((latest.teams||[]).map(t=>t.pts));
   const curPts=G.teams?JSON.stringify(G.teams.map(t=>t.pts)):'';
+  // アクティブチームがPT=0なら実質終了 → activeTeamをクリア
+  if(latest.activeTeam>=0){
+    const at=latest.teams&&latest.teams[latest.activeTeam];
+    if(at&&at.pts<=0&&(at.awardedToday||0)>0){
+      latest.activeTeam=-1;
+      // サーバーにも反映（自分がアクティブだった場合のみ書き込み）
+      if(myTeam>=0){ G.activeTeam=-1; save(); }
+    }
+  }
   // 別チームがアクティブになった → 自分を自動的に観戦モードへ
   if(myTeam>=0 && latest.activeTeam>=0 && latest.activeTeam!==myTeam){
     myTeam=-1; _gameReady=false;
