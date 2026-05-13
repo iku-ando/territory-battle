@@ -564,6 +564,7 @@ function switchToWatch(){
   clearInterval(_zeroTimer); _zeroTimer=null;
   document.getElementById('zeroOv').classList.remove('show');
   G.activeTeam=-1;
+  if(myTeam>=0) _finishedTeam=myTeam; // 終了チームを記録
   myTeam=-1; _gameReady=false;
   pendingCells=[]; updateMultiBar();
   _prevActiveTeam=-1; // 自分が終了したのでターン交代ポップを出さない
@@ -1158,6 +1159,7 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
   // ログイン確定
   myTeam=idx;
   _gameReady=true;
+  _finishedTeam=-1; // 再ログインしたのでリセット
   pendingCells=[];
   G.activeTeam=idx;
   localStorage.setItem('tb3_myTeam', myTeam);
@@ -1315,6 +1317,7 @@ setInterval(async()=>{
         team.awardedToday=0;
       });
       G.lastDate=t;
+      _finishedTeam=-1; // 新しい日なのでリセット
       save(); render();
     }
     // 今日まだ付与されていなければ自動付与
@@ -1323,6 +1326,7 @@ setInterval(async()=>{
 },60000);
 
 let _prevActiveTeam=-1; // ターン交代検知用
+let _finishedTeam=-1;  // このデバイスで本日行動終了したチーム（ターン交代ポップ抑制用）
 // 10秒ごとにEC2から最新データを取得して画面を同期
 setInterval(async()=>{
   // 確認ダイアログ・管理画面は操作中なのでスキップ
@@ -1366,8 +1370,9 @@ setInterval(async()=>{
     const endedTeam=_prevActiveTeam;
     _prevActiveTeam=-1;
     G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame(); render();
-    // ポイントを持っているチームがあれば通知
-    if(G.teams.some(t=>t.pts>0)){
+    // ポイントを持っているチームがあり、かつこのデバイスが終了済みでなければ通知
+    const myDone=_finishedTeam>=0&&G.teams[_finishedTeam]&&G.teams[_finishedTeam].pts<=0&&(G.teams[_finishedTeam].awardedToday||0)>0;
+    if(!myDone && G.teams.some(t=>t.pts>0)){
       showTurnChangePopup(endedTeam);
     }
     return;
