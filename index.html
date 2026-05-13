@@ -283,7 +283,18 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
   <div class="obox">
     <div class="otitle" id="zeroTitle"></div>
     <div class="obody" id="zeroBody"></div>
-    <button class="btn-main" id="zeroOk">次のターンへ ▶</button>
+    <button class="btn-main" id="zeroOk">👁 観戦モードへ ▶</button>
+  </div>
+</div>
+
+<div class="overlay" id="turnChangeOv">
+  <div class="obox">
+    <div class="otitle" id="tcTitle"></div>
+    <div class="obody" id="tcBody"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px;">
+      <button class="btn-main" id="tcAction">アクションする ▶</button>
+      <button class="btn-sm" id="tcWatch" style="padding:10px 16px;">観戦を続ける</button>
+    </div>
   </div>
 </div>
 
@@ -547,18 +558,53 @@ function showConfirm(title, body, onOk, showCancel){
   };
 }
 
-// --- pt=0通知 ---
+// --- pt=0通知 → 観戦モードへ ---
 function showZeroPopup(){
   const i=myTeam>=0?myTeam:0;
   document.getElementById('zeroTitle').style.color=TCOL[i];
-  document.getElementById('zeroTitle').textContent='今日のポイントがなくなりました';
+  document.getElementById('zeroTitle').textContent='本日のポイントをすべて使いました';
   document.getElementById('zeroBody').innerHTML=
-    TNAME[i]+' の本日ポイントが <strong>0</strong> になりました。<br>明日またポイントが付与されます。';
+    '<strong>他チームに行動ターンが移ります。</strong><br>'
+    +'<span style="font-size:11px;color:#aaa;">明日また新しいポイントが付与されます。</span>';
   document.getElementById('zeroOv').classList.add('show');
 }
 
 document.getElementById('zeroOk').addEventListener('click',()=>{
   document.getElementById('zeroOv').classList.remove('show');
+  // 観戦モードへ移行・ターンを解放
+  G.activeTeam=-1;
+  myTeam=-1; _gameReady=false;
+  pendingCells=[]; updateMultiBar();
+  save();
+  localStorage.setItem('tb3_myTeam', -1);
+  setMsg('👁 観戦モードで閲覧中');
+  render();
+});
+
+// --- ターン交代通知（観戦中デバイスへ）---
+function showTurnChangePopup(prevTeamIdx){
+  const i=prevTeamIdx;
+  document.getElementById('tcTitle').style.color=TCOL[i];
+  document.getElementById('tcTitle').textContent=TNAME[i]+' のターンが終わりました';
+  // ポイントを持っているチームを列挙
+  const active=G.teams.map((t,ti)=>({ti,pts:t.pts})).filter(x=>x.pts>0);
+  const names=active.map(x=>'<span style="color:'+TCOL[x.ti]+'">'+TNAME[x.ti]+'('+x.pts+'PT)</span>').join(' / ');
+  document.getElementById('tcBody').innerHTML=
+    'アクション可能なチーム：<br>'+names+'<br>'
+    +'<span style="font-size:11px;color:#aaa;margin-top:6px;display:block;">ログインして行動しますか？</span>';
+  document.getElementById('turnChangeOv').classList.add('show');
+}
+
+document.getElementById('tcAction').addEventListener('click',()=>{
+  document.getElementById('turnChangeOv').classList.remove('show');
+  // ログイン画面へ
+  document.getElementById('loginPw').value='';
+  document.getElementById('loginErr').style.display='none';
+  document.getElementById('loginOv').classList.add('show');
+});
+
+document.getElementById('tcWatch').addEventListener('click',()=>{
+  document.getElementById('turnChangeOv').classList.remove('show');
 });
 
 // --- ターンポップアップ ---
@@ -1230,6 +1276,7 @@ setInterval(async()=>{
   }
 },60000);
 
+let _prevActiveTeam=-1; // ターン交代検知用
 // 10秒ごとにEC2から最新データを取得して画面を同期
 setInterval(async()=>{
   // 確認ダイアログ・管理画面は操作中なのでスキップ
@@ -1253,8 +1300,24 @@ setInterval(async()=>{
     G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame();
     render();
     setMsg('👁 '+TNAME[latest.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました');
+    _prevActiveTeam=latest.activeTeam;
     return;
   }
+  // アクティブチームが終了した（-1になった）→ 観戦中デバイスに通知
+  const noOverlay=['turnChangeOv','zeroOv','loginOv','confirmOv','adminOv','turnOv'].every(
+    id=>!document.getElementById(id).classList.contains('show')
+  );
+  if(myTeam<0 && _prevActiveTeam>=0 && latest.activeTeam===-1 && noOverlay){
+    const endedTeam=_prevActiveTeam;
+    _prevActiveTeam=-1;
+    G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame(); render();
+    // ポイントを持っているチームがあれば通知
+    if(G.teams.some(t=>t.pts>0)){
+      showTurnChangePopup(endedTeam);
+    }
+    return;
+  }
+  _prevActiveTeam=latest.activeTeam>=0?latest.activeTeam:-1;
   if(latestBoard===curBoard&&latestPts===curPts) return;
   G=latest;
   G.bonus=G.bonus||{};
