@@ -331,22 +331,18 @@ function prevDay(dateStr){
 // 全チームの前日会話データを取得してPTを付与
 // fetchDate: 付与する「本日」の日付。prevDay(fetchDate) のデータを取得する
 async function awardDailyPoints(fetchDate){
-  G.awardedDates=G.awardedDates||{};
-  if(G.awardedDates[fetchDate]){
-    G.lastAwardDate=fetchDate;
-    return;
-  }
+  if(G.lastAwardDate===fetchDate) return true;
   const targetDate=prevDay(fetchDate); // 前日のデータを取得
   setMsg('⏳ 会話データを取得中...');
 
   // 4チーム並列取得
   const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
 
-  // 全チーム取得失敗なら中止
-  if(results.every(r=>r===null)){
+  // どれか1チームでも取得失敗したら、前日の持ち点を壊さず中止
+  if(results.some(r=>r===null)){
     setMsg('❌ 会話データの取得に失敗しました');
     setTimeout(()=>setMsg(''),4000);
-    return;
+    return false;
   }
 
   // PT計算・付与
@@ -362,14 +358,17 @@ async function awardDailyPoints(fetchDate){
     t.talkTotal=(t.talkTotal||0)+mins;
     t.awardedToday=newPts;
   });
+  G.gameDate=fetchDate;
+  G.lastDate=fetchDate;
+  G.debugDate=fetchDate;
   G.lastAwardDate=fetchDate;
-  G.awardedDates[fetchDate]=true;
   save(); render();
 
   // 付与サマリーをメッセージ表示
   const summary=G.teams.map((t,i)=>TNAME[i]+': '+t.awardedToday+'PT').join(' / ');
   setMsg('✅ '+summary);
   setTimeout(()=>setMsg(''),5000);
+  return true;
 }
 
 // 自動PT付与チェック（起動時・毎分）
@@ -388,12 +387,7 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
-  G.awardedDates=G.awardedDates||{};
   const curDate=getAwardDate();
-  if(G.awardedDates[curDate]){
-    if(G.lastAwardDate!==curDate) G.lastAwardDate=curDate;
-    return;
-  }
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
   if(_gameReady) showLoginAwardNotif();
@@ -437,7 +431,6 @@ function initG(members, startDate, passwords){
   G.lastDate=startDate; // 旧データ互換
   G.lastRealDate=today(); // 本番運用で実日付の切り替わりを検知する
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
-  G.awardedDates={};
   G.gameStart=startDate;
   G.debugDate=startDate; // 旧データ互換
   G.debugMode=startDate!==today(); // 過去日スタートはデバッグ扱いで実日付に追従しない
@@ -464,8 +457,6 @@ function today(){
 function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
-  if(!G.awardedDates) G.awardedDates={};
-  if(G.lastAwardDate) G.awardedDates[G.lastAwardDate]=true;
   if(!G.gameDate) G.gameDate=G.debugDate||G.lastDate||G.gameStart||today();
   if(!G.lastRealDate) G.lastRealDate=today();
   if(G.activeTeam===undefined) G.activeTeam=-1;
@@ -1155,12 +1146,11 @@ document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
   if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+cur)) return;
   const d=new Date(cur+'T00:00:00');
   d.setDate(d.getDate()+1);
-  G.gameDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
-  G.debugDate=G.gameDate;
-  G.lastDate=G.gameDate;
+  const nextDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
   updateDebugDateInfo();
-  // 翌日の自動付与（prevDay(gameDate)のデータを取得）
-  await awardDailyPoints(G.gameDate);
+  // 翌日の自動付与（prevDay(nextDate)のデータを取得）
+  const ok=await awardDailyPoints(nextDate);
+  if(ok) updateDebugDateInfo();
 });
 
 function updateDebugDateInfo(){
