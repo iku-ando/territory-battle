@@ -171,9 +171,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <div class="otitle">⚙ 管理者設定</div>
     <p style="font-size:13px;margin-bottom:16px;color:#aaa;">ゲーム設定をして開始してください</p>
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">ゲーム開始日</label>
-      <input type="date" id="gameStartDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
-      <p style="font-size:11px;color:#666;margin-top:4px;">発話量の集計開始日（例：2025-04-01）</p>
+      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">ゲーム終了日</label>
+      <input type="date" id="gameEndDate" style="background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:6px;width:100%;max-width:300px;">
+      <p style="font-size:11px;color:#666;margin-top:4px;">この日を過ぎるとPT付与を止め、閲覧モードのみになります</p>
     </div>
     <div style="margin-bottom:20px;">
       <p style="font-size:12px;color:#aaa;margin-bottom:10px;">各チームのパスワードを設定</p>
@@ -315,7 +315,8 @@ const COLS=12,ROWS=12;
 const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
 const PT_PER=80; // 80分で1pt
-const API_BASE='/api/stats';
+const API_ORIGIN=location.protocol==='file:'?'https://territory-battle-seven.vercel.app':'';
+const API_BASE=API_ORIGIN+'/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
 
 // APIから発話量（分）を取得（指定日1日分）
@@ -396,6 +397,10 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
+  if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)){
+    render();
+    return;
+  }
   const curDate=getAwardDate();
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
@@ -403,7 +408,7 @@ async function checkAndAwardDaily(){
 }
 
 function getAwardDate(){
-  return G.gameDate||G.lastDate||G.gameStart||today();
+  return G.gameDate||G.lastDate||today();
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -418,7 +423,7 @@ let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
 
-function initG(members, startDate, passwords){
+function initG(members, startDate, gameEnd, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
   G.teams=[0,1,2,3].map(i=>({
     name:TNAME[i],
@@ -441,8 +446,9 @@ function initG(members, startDate, passwords){
   G.lastRealDate=today(); // 本番運用で実日付の切り替わりを検知する
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.gameStart=startDate;
+  G.gameEnd=gameEnd;
   G.debugDate=startDate; // 旧データ互換
-  G.debugMode=startDate!==today(); // 過去日スタートはデバッグ扱いで実日付に追従しない
+  G.debugMode=false;
   G.passwords=passwords;
   fillCorners();
   genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
@@ -463,11 +469,35 @@ function today(){
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
+function isGameEnded(game=G, dateStr){
+  const end=game&&game.gameEnd;
+  if(!end) return false;
+  const cur=dateStr||(game.gameDate||game.debugDate||game.lastDate||today());
+  return !!cur && cur>end;
+}
+
+function endGameIfNeeded(message, persist=false){
+  if(!isGameEnded(G)) return false;
+  let changed=false;
+  if(G.activeTeam>=0){G.activeTeam=-1;G.activeSince=0;changed=true;}
+  if(myTeam>=0){
+    myTeam=-1;
+    myActiveSince=0;
+    _gameReady=false;
+    localStorage.setItem('tb3_myTeam','-1');
+  }
+  if(pendingCells.length){pendingCells=[];updateMultiBar();}
+  if(message) setMsg(message);
+  if(persist||changed) save();
+  return true;
+}
+
 function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
   if(!G.gameDate) G.gameDate=G.debugDate||G.lastDate||G.gameStart||today();
   if(!G.lastRealDate) G.lastRealDate=today();
+  if(G.gameEnd===undefined) G.gameEnd=G.endDate||'';
   if(G.activeTeam===undefined) G.activeTeam=-1;
   if(G.activeSince===undefined) G.activeSince=0;
   if(G.debugMode===undefined) G.debugMode=false;
@@ -508,7 +538,7 @@ function fillCorners(){
   G.board[ROWS-1][COLS-1]=3; // Team D 右下
 }
 
-const API_URL='/api/game-state';
+const API_URL=API_ORIGIN+'/api/game-state';
 
 function save(){
   // ローカルタイムスタンプを付与（同期判定用）
@@ -1083,23 +1113,31 @@ function showGame(){
 }
 
 function canOperate(){
-  return myTeam>=0; // ログイン中なら全チーム常時操作可能
+  return myTeam>=0&&!isGameEnded(); // 終了後は閲覧のみ
 }
 
 function showNotMyTurn(){
+  if(isGameEnded()){setMsg('ゲーム終了日を過ぎたため、閲覧モードです');return;}
   setMsg('⛔ 自分のチームのターンではありません');
 }
 
 // --- ボタンイベント ---
 document.getElementById('startBtn').addEventListener('click', async ()=>{
-  const startDate=document.getElementById('gameStartDate').value||today();
+  const startDate=today();
+  const gameEnd=document.getElementById('gameEndDate').value;
   const members=[1,1,1,1]; // 初期1名固定
   const passwords=[0,1,2,3].map(i=>(document.getElementById('pw'+i)||{value:''}).value||'');
+  if(!gameEnd){
+    alert('ゲーム終了日を設定してください');return;
+  }
+  if(gameEnd<startDate){
+    alert('ゲーム終了日は今日以降の日付を設定してください');return;
+  }
   if(passwords.some(p=>p==='')){
     alert('全チームのパスワードを設定してください');return;
   }
   localStorage.removeItem('tb3');
-  initG(members, startDate, passwords);
+  initG(members, startDate, gameEnd, passwords);
   const startBtn=document.getElementById('startBtn');
   startBtn.disabled=true; startBtn.textContent='データ取得中…';
   // 開始日の前日データを取得してPT付与（lastAwardDate=startDateになる）
@@ -1147,6 +1185,15 @@ document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
   d.setDate(d.getDate()+1);
   const nextDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
   updateDebugDateInfo();
+  if(isGameEnded(G, nextDate)){
+    G.gameDate=nextDate;
+    G.lastDate=nextDate;
+    G.debugDate=nextDate;
+    endGameIfNeeded('ゲーム終了日を過ぎたため、PT付与を停止しました', true);
+    render();
+    updateDebugDateInfo();
+    return;
+  }
   // 翌日の自動付与（prevDay(nextDate)のデータを取得）
   const ok=await awardDailyPoints(nextDate);
   if(ok) updateDebugDateInfo();
@@ -1155,7 +1202,7 @@ document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
 function updateDebugDateInfo(){
   const el=document.getElementById('debugDateInfo');
   if(!el) return;
-  el.textContent=(G.debugMode?'デバッグ日付: ':'ゲーム日付: ')+(G.gameDate||today());
+  el.textContent=(G.debugMode?'デバッグ日付: ':'ゲーム日付: ')+(G.gameDate||today())+(G.gameEnd?' ／ 終了日: '+G.gameEnd:'');
 }
 
 function isTeamDone(game, idx){
@@ -1186,6 +1233,11 @@ async function claimTeam(idx){
     G=latest;
     G.bonus=G.bonus||{};
     sanitizeLoadedGame();
+  }
+
+  if(isGameEnded()){
+    endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true);
+    return {ok:false, reason:'ended'};
   }
 
   const active=G.activeTeam;
@@ -1262,6 +1314,8 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
       switchToSpectator('👁 '+TNAME[claim.active]+' がプレイ中 — 観戦モードで閲覧中');
     }else if(claim.reason==='done'){
       switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    }else if(claim.reason==='ended'){
+      switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです');
     }else{
       errEl.textContent='ログイン保存に失敗しました';
       errEl.style.display='block';
@@ -1346,6 +1400,8 @@ document.getElementById('quickLoginBtn').addEventListener('click', async ()=>{
       document.getElementById('loginErr').style.display='block';
     }else if(claim.reason==='done'){
       switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    }else if(claim.reason==='ended'){
+      switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです');
     }else{
       document.getElementById('loginErr').textContent='ログイン保存に失敗しました';
       document.getElementById('loginErr').style.display='block';
@@ -1438,6 +1494,7 @@ document.getElementById('game').style.display='flex';
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
     sanitizeLoadedGame();
+    endGameIfNeeded('', true);
     await checkAndAwardDaily();
     render();
     requestAnimationFrame(initSearchlights);
@@ -1460,6 +1517,10 @@ setInterval(async()=>{
         G.activeTeam=-1;
         G.activeSince=0;
       }
+    }
+    if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)){
+      render();
+      return;
     }
     await checkAndAwardDaily();
   }
@@ -1501,6 +1562,15 @@ setInterval(async()=>{
   const curBoard=G.board?JSON.stringify(G.board):'';
   const latestPts=JSON.stringify((latest.teams||[]).map(t=>t.pts));
   const curPts=G.teams?JSON.stringify(G.teams.map(t=>t.pts)):'';
+  if(isGameEnded(latest)){
+    latest.activeTeam=-1;
+    latest.activeSince=0;
+    if(myTeam>=0){
+      switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです', latest);
+      save();
+      return;
+    }
+  }
   if(hasUnexpectedPointIncrease(latest, G, latestBoard, curBoard)){
     save();
     return;
@@ -1562,7 +1632,8 @@ setInterval(async()=>{
 // --- 管理者モーダル ---
 function openAdmin(){
   if(G.passwords){G.passwords.forEach((pw,i)=>{const el=document.getElementById('pw'+i);if(el)el.value=pw;});}
-  if(G.gameStart){document.getElementById('gameStartDate').value=G.gameStart;}
+  const endEl=document.getElementById('gameEndDate');
+  if(endEl) endEl.value=G.gameEnd||'';
   const gameRunning=G.board&&G.board.length>0;
   document.getElementById('adminActions').style.display=gameRunning?'block':'none';
   // 前回付与日と仮想日付を表示
@@ -1570,7 +1641,9 @@ function openAdmin(){
   if(statusEl){
     const lastAward=G.lastAwardDate||'未付与';
     const curDate=getAwardDate();
-    statusEl.textContent='前回付与: '+lastAward+'　／　取得対象: '+prevDay(curDate)+'の会話データ';
+    statusEl.textContent=isGameEnded()
+      ? 'ゲーム終了済み: PT付与停止中'
+      : '前回付与: '+lastAward+'　／　取得対象: '+prevDay(curDate)+'の会話データ';
   }
   updateDebugDateInfo();
   document.getElementById('loginOv').classList.remove('show');
