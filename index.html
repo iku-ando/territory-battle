@@ -401,7 +401,7 @@ async function checkAndAwardDaily(){
 }
 
 function getAwardDate(){
-  return G.debugMode&&G.debugDate ? G.debugDate : (G.lastDate||G.gameStart||today());
+  return G.gameDate||G.lastDate||G.gameStart||today();
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -434,12 +434,14 @@ function initG(members, startDate, passwords){
   G.activeTeam=-1; // 現在ログイン中のチーム（-1=なし）
   G.activeSince=0; // 操作権を取った時刻。小さい方を優先する
   G.bonus={};
-  G.lastDate=startDate;
+  G.gameDate=startDate; // ゲーム上の現在日。この日の前日分をPT付与する。
+  G.lastDate=startDate; // 旧データ互換
+  G.lastRealDate=today(); // 本番運用で実日付の切り替わりを検知する
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.awardedDates={};
   G.gameStart=startDate;
-  G.debugDate=startDate; // デバッグ用仮想日付（本番では未使用）
-  G.debugMode=false;
+  G.debugDate=startDate; // 旧データ互換
+  G.debugMode=startDate!==today(); // 過去日スタートはデバッグ扱いで実日付に追従しない
   G.passwords=passwords;
   fillCorners();
   genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
@@ -465,6 +467,8 @@ function sanitizeLoadedGame(){
   if(!G.lastAwardDate) G.lastAwardDate='';
   if(!G.awardedDates) G.awardedDates={};
   if(G.lastAwardDate) G.awardedDates[G.lastAwardDate]=true;
+  if(!G.gameDate) G.gameDate=G.debugDate||G.lastDate||G.gameStart||today();
+  if(!G.lastRealDate) G.lastRealDate=today();
   if(G.activeTeam===undefined) G.activeTeam=-1;
   if(G.activeSince===undefined) G.activeSince=0;
   if(G.debugMode===undefined) G.debugMode=false;
@@ -475,14 +479,8 @@ function sanitizeLoadedGame(){
     if(t.talkTotal===undefined) t.talkTotal=0;
     if(t.awardedToday===undefined) t.awardedToday=0;
   });
-  // デバッグ運用中は実日付に追従しない。古い版で今日付与された保存データもゲーム日付へ戻す。
-  if(G.debugMode&&G.debugDate){
-    if(G.lastDate&&G.lastDate!==G.debugDate&&G.lastAwardDate===G.lastDate){
-      G.awardedDates[G.debugDate]=true;
-      G.lastAwardDate=G.debugDate;
-    }
-    G.lastDate=G.debugDate;
-  }
+  G.lastDate=G.gameDate;
+  G.debugDate=G.gameDate;
   // ボードサイズ不整合（旧バージョン保存データ）は盤面を再初期化
   if(!G.board||G.board.length!==ROWS||!G.board[0]||G.board[0].length!==COLS){
     G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -1151,27 +1149,23 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
 
 // デバッグ：翌日に進む（仮想日付を1日進めて自動付与）
 document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
-  if(!G.debugMode){
-    G.debugMode=true;
-    G.debugDate=G.lastAwardDate||today();
-  }
-  const cur=G.debugDate||today();
+  G.debugMode=true;
+  const cur=G.gameDate||G.debugDate||G.lastDate||G.gameStart||today();
   if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+cur)) return;
   const d=new Date(cur+'T00:00:00');
   d.setDate(d.getDate()+1);
-  G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
-  G.lastAwardDate=''; // リセットして再付与可能に
-  G.lastDate=G.debugDate;
+  G.gameDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+  G.debugDate=G.gameDate;
+  G.lastDate=G.gameDate;
   updateDebugDateInfo();
-  // 翌日の自動付与（prevDay(G.debugDate)のデータを取得）
-  // lastAwardDate=G.debugDateになるので、checkAndAwardDailyもdebugDate基準でスキップされる
-  await awardDailyPoints(G.debugDate);
+  // 翌日の自動付与（prevDay(gameDate)のデータを取得）
+  await awardDailyPoints(G.gameDate);
 });
 
 function updateDebugDateInfo(){
   const el=document.getElementById('debugDateInfo');
   if(!el) return;
-  el.textContent=G.debugMode&&G.debugDate ? '仮想日付: '+G.debugDate : '本番日付: '+today();
+  el.textContent=(G.debugMode?'デバッグ日付: ':'ゲーム日付: ')+(G.gameDate||today());
 }
 
 function isTeamDone(game, idx){
@@ -1465,7 +1459,18 @@ document.getElementById('game').style.display='flex';
 
 setInterval(async()=>{
   if(G.board&&G.board.length){
-    // ゲーム内日付の分だけ付与する。実日付には自動で追従しない。
+    const realToday=today();
+    if(!G.debugMode&&G.lastRealDate!==realToday){
+      G.lastRealDate=realToday;
+      G.gameDate=realToday;
+      G.lastDate=realToday;
+      G.debugDate=realToday;
+      _finishedTeam=-1;
+      if(G.activeTeam>=0){
+        G.activeTeam=-1;
+        G.activeSince=0;
+      }
+    }
     await checkAndAwardDaily();
   }
 },60000);
