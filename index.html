@@ -1119,7 +1119,11 @@ document.getElementById('debugNextBtn').addEventListener('click',()=>{
   save();
   updateDebugDateInfo();
   // 翌日の自動付与（prevDay(G.debugDate)のデータを取得）
-  awardDailyPoints(G.debugDate);
+  awardDailyPoints(G.debugDate).then(()=>{
+    // 付与後にlastAwardDateを今日に合わせて二重付与を防止
+    G.lastAwardDate=today();
+    save();
+  });
 });
 
 function updateDebugDateInfo(){
