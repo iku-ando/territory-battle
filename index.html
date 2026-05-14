@@ -331,6 +331,12 @@ function prevDay(dateStr){
 // 全チームの前日会話データを取得してPTを付与
 // fetchDate: 付与する「本日」の日付。prevDay(fetchDate) のデータを取得する
 async function awardDailyPoints(fetchDate){
+  G.awardedDates=G.awardedDates||{};
+  if(G.awardedDates[fetchDate]){
+    G.lastAwardDate=fetchDate;
+    save();
+    return;
+  }
   const targetDate=prevDay(fetchDate); // 前日のデータを取得
   setMsg('⏳ 会話データを取得中...');
 
@@ -358,6 +364,7 @@ async function awardDailyPoints(fetchDate){
     t.awardedToday=newPts;
   });
   G.lastAwardDate=fetchDate;
+  G.awardedDates[fetchDate]=true;
   save(); render();
 
   // 付与サマリーをメッセージ表示
@@ -382,7 +389,12 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
+  G.awardedDates=G.awardedDates||{};
   const curDate=getAwardDate();
+  if(G.awardedDates[curDate]){
+    if(G.lastAwardDate!==curDate){G.lastAwardDate=curDate; save();}
+    return;
+  }
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
   if(_gameReady) showLoginAwardNotif();
@@ -424,6 +436,7 @@ function initG(members, startDate, passwords){
   G.bonus={};
   G.lastDate=startDate;
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
+  G.awardedDates={};
   G.gameStart=startDate;
   G.debugDate=startDate; // デバッグ用仮想日付（本番では未使用）
   G.debugMode=false;
@@ -450,6 +463,8 @@ function today(){
 function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
+  if(!G.awardedDates) G.awardedDates={};
+  if(G.lastAwardDate) G.awardedDates[G.lastAwardDate]=true;
   if(G.activeTeam===undefined) G.activeTeam=-1;
   if(G.activeSince===undefined) G.activeSince=0;
   if(G.debugMode===undefined) G.debugMode=false;
@@ -460,6 +475,14 @@ function sanitizeLoadedGame(){
     if(t.talkTotal===undefined) t.talkTotal=0;
     if(t.awardedToday===undefined) t.awardedToday=0;
   });
+  // デバッグ運用中は実日付に追従しない。古い版で今日付与された保存データもゲーム日付へ戻す。
+  if(G.debugMode&&G.debugDate){
+    if(G.lastDate&&G.lastDate!==G.debugDate&&G.lastAwardDate===G.lastDate){
+      G.awardedDates[G.debugDate]=true;
+      G.lastAwardDate=G.debugDate;
+    }
+    G.lastDate=G.debugDate;
+  }
   // ボードサイズ不整合（旧バージョン保存データ）は盤面を再初期化
   if(!G.board||G.board.length!==ROWS||!G.board[0]||G.board[0].length!==COLS){
     G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
