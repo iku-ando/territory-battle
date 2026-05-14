@@ -1,5 +1,5 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
-const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e20d9-7a39-71a3-b4eb-8983a660e2c5';
+const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e28e3-4243-77ca-898b-c7b9129dbf51';
 const PT_PER = 80;
 
 async function loadCurrentState() {

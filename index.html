@@ -1108,8 +1108,14 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   try{
     G._savedAt=Date.now();
     localStorage.setItem('tb3',JSON.stringify(G));
-    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(G)});
-  }catch(e){}
+    const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(G)});
+    const json=await res.json().catch(()=>({success:false,error:'invalid response'}));
+    if(!res.ok||!json.success) throw new Error(json.error||'server save failed');
+  }catch(e){
+    startBtn.disabled=false; startBtn.textContent='▶ START GAME';
+    alert('⚠ サーバーへの保存に失敗しました。もう一度試してください。\n'+(e&&e.message?e.message:''));
+    return;
+  }
   startBtn.disabled=false; startBtn.textContent='▶ START GAME';
   showGame();
   render();
