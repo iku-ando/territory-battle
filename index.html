@@ -1075,6 +1075,8 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   startBtn.disabled=true; startBtn.textContent='データ取得中…';
   // 開始日の前日データを取得してPT付与
   await awardDailyPoints(startDate);
+  // 今日の日付に合わせて再付与を防ぐ（startDateが過去でもcheckAndAwardDailyが発火しないよう）
+  G.lastAwardDate=today();
   startBtn.textContent='保存中…';
   try{
     G._savedAt=Date.now();
