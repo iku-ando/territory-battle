@@ -768,22 +768,6 @@ async function clickCell(r,c){
     updateMultiBar(); render(); return;
   }
 
-  // 最初のマス選択時のみサーバー同期チェック。
-  // 新しい状態があれば取り込むが、クリック自体はそのまま選択処理へ進める。
-  if(pendingCells.length===0){
-    const latest=await loadFromServer();
-    if(latest&&latest.board){
-      if(latest._lock&&latest._lock.until>Date.now()){
-        setMsg('⚠ 他のメンバーが操作中です。しばらくお待ちください'); return;
-      }
-      const latestSavedAt=latest._savedAt||Date.parse(latest.updated_at||'')||0;
-      const curSavedAt=G._savedAt||Date.parse(G.updated_at||'')||0;
-      if(latestSavedAt&&curSavedAt&&latestSavedAt>curSavedAt){
-        G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame();
-      }
-    }
-  }
-
   // 自分の陣地・範囲外チェック
   const own=G.board[r][c];
   if(own===myTeam){setMsg('自分の陣地！');return;}
