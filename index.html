@@ -399,6 +399,7 @@ function genBonusPos(){ return BONUS_POS_FIXED; }
 
 let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
+let myActiveSince=0; // この端末が操作権を取った時刻
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
@@ -419,6 +420,7 @@ function initG(members, startDate, passwords){
   G.cur=0; // 後方互換のため残す（ゲームロジックでは不使用）
   G.pending=null;
   G.activeTeam=-1; // 現在ログイン中のチーム（-1=なし）
+  G.activeSince=0; // 操作権を取った時刻。小さい方を優先する
   G.bonus={};
   G.lastDate=startDate;
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
@@ -449,6 +451,7 @@ function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
   if(G.activeTeam===undefined) G.activeTeam=-1;
+  if(G.activeSince===undefined) G.activeSince=0;
   if(G.debugMode===undefined) G.debugMode=false;
   G.teams&&G.teams.forEach((t,i)=>{
     t.name=TNAME[i]; // 常に最新チーム名で上書き
@@ -1148,6 +1151,94 @@ function updateDebugDateInfo(){
   el.textContent=G.debugMode&&G.debugDate ? '仮想日付: '+G.debugDate : '本番日付: '+today();
 }
 
+function isTeamDone(game, idx){
+  const team=game&&game.teams&&game.teams[idx];
+  return !!(team&&team.pts<=0&&(team.awardedToday||0)>0);
+}
+
+function switchToSpectator(message, latest){
+  myTeam=-1;
+  myActiveSince=0;
+  _gameReady=false;
+  pendingCells=[];
+  localStorage.setItem('tb3_myTeam', -1);
+  if(latest&&latest.board){
+    G=latest;
+    G.bonus=G.bonus||{};
+    sanitizeLoadedGame();
+  }
+  document.getElementById('loginOv').classList.remove('show');
+  updateMultiBar();
+  render();
+  if(message) setMsg(message);
+}
+
+async function claimTeam(idx){
+  const latest=await loadFromServer();
+  if(latest&&latest.board){
+    G=latest;
+    G.bonus=G.bonus||{};
+    sanitizeLoadedGame();
+  }
+
+  const active=G.activeTeam;
+  if(active>=0&&active!==idx){
+    if(!isTeamDone(G, active)){
+      return {ok:false, reason:'active', active};
+    }
+    G.activeTeam=-1;
+    G.activeSince=0;
+  }
+
+  if(isTeamDone(G, idx)){
+    return {ok:false, reason:'done'};
+  }
+
+  myActiveSince=Date.now();
+  G.activeTeam=idx;
+  G.activeSince=myActiveSince;
+  myTeam=idx;
+  _gameReady=true;
+  _finishedTeam=-1;
+  pendingCells=[];
+  localStorage.setItem('tb3_myTeam', myTeam);
+  const saved=await save();
+  if(!saved||!saved.success) return {ok:false, reason:'save'};
+  return {ok:true};
+}
+
+async function verifyActiveClaim(){
+  if(myTeam<0) return;
+  const recheck=await loadFromServer();
+  if(!recheck||!recheck.board) return;
+  sanitizeGameObject(recheck);
+  if(recheck.activeTeam===myTeam) return;
+
+  const mine=G.activeSince||myActiveSince||Date.now();
+  const theirs=recheck.activeSince||Date.now();
+  if(recheck.activeTeam>=0&&mine<theirs){
+    G.activeTeam=myTeam;
+    G.activeSince=mine;
+    save();
+    setMsg(TNAME[myTeam]+' が先に作業中です');
+    return;
+  }
+
+  if(recheck.activeTeam>=0){
+    switchToSpectator('👁 '+TNAME[recheck.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました', recheck);
+  }
+}
+
+function sanitizeGameObject(game){
+  const prev=G;
+  G=game;
+  G.bonus=G.bonus||{};
+  sanitizeLoadedGame();
+  game=G;
+  G=prev;
+  return game;
+}
+
 // ログイン処理
 document.getElementById('loginOk').addEventListener('click', async ()=>{
   const pw=document.getElementById('loginPw').value;
@@ -1158,47 +1249,18 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
     errEl.style.display='block';
     return;
   }
-  // 別チームがアクティブか確認
-  const latest=await loadFromServer();
-  const lG=latest||G;
-  let active=lG.activeTeam;
-  // アクティブチームがPT=0なら実質終了 → activeTeamをクリアして通過
-  if(active>=0 && active!==idx){
-    const activeTeamState=lG.teams&&lG.teams[active];
-    const activeDone=activeTeamState&&activeTeamState.pts<=0&&(activeTeamState.awardedToday||0)>0;
-    if(activeDone){
-      // PT使い切り済みなのにactiveTeamが残っている → サーバー側をクリア
-      if(latest) latest.activeTeam=-1;
-      G.activeTeam=-1;
-      active=-1;
-    } else {
-      // 本当にプレイ中 → 観戦モードへ
-      myTeam=-1; _gameReady=false;
-      localStorage.setItem('tb3_myTeam', myTeam);
-      document.getElementById('loginOv').classList.remove('show');
-      setMsg('👁 '+TNAME[active]+' がプレイ中 — 観戦モードで閲覧中');
-      render();
-      return;
+  const claim=await claimTeam(idx);
+  if(!claim.ok){
+    if(claim.reason==='active'){
+      switchToSpectator('👁 '+TNAME[claim.active]+' がプレイ中 — 観戦モードで閲覧中');
+    }else if(claim.reason==='done'){
+      switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    }else{
+      errEl.textContent='ログイン保存に失敗しました';
+      errEl.style.display='block';
     }
-  }
-  // 本日の行動が終了しているか確認（PT付与済みで使い切った場合）
-  const teamState=(latest||G).teams&&(latest||G).teams[idx];
-  if(teamState && teamState.pts<=0 && (teamState.awardedToday||0)>0){
-    myTeam=-1; _gameReady=false;
-    localStorage.setItem('tb3_myTeam', -1);
-    document.getElementById('loginOv').classList.remove('show');
-    setMsg('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
-    render();
     return;
   }
-  // ログイン確定
-  myTeam=idx;
-  _gameReady=true;
-  _finishedTeam=-1; // 再ログインしたのでリセット
-  pendingCells=[];
-  G.activeTeam=idx;
-  localStorage.setItem('tb3_myTeam', myTeam);
-  save();
   document.getElementById('loginOv').classList.remove('show');
   errEl.style.display='none';
   setMsg('');
@@ -1208,16 +1270,7 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
   showLoginAwardNotif();
   // 2秒後にactiveTeamが上書きされていないか再確認（同時ログイン競合対策）
   setTimeout(async()=>{
-    if(myTeam<0) return; // すでに観戦モードなら不要
-    const recheck=await loadFromServer();
-    if(recheck && recheck.activeTeam>=0 && recheck.activeTeam!==myTeam){
-      myTeam=-1; _gameReady=false;
-      G.activeTeam=recheck.activeTeam;
-      pendingCells=[]; updateMultiBar();
-      localStorage.setItem('tb3_myTeam', -1);
-      setMsg('👁 '+TNAME[recheck.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました');
-      render();
-    }
+    await verifyActiveClaim();
   }, 2000);
 });
 
@@ -1279,47 +1332,25 @@ function updateQuickLogin(){
 document.getElementById('quickLoginBtn').addEventListener('click', async ()=>{
   const idx=parseInt(localStorage.getItem('tb3_lastTeam'));
   if(idx<0||idx>3) return;
-  // activeTeamチェック（loginOkと同じロジック）
-  const latest=await loadFromServer();
-  const lG=latest||G;
-  let active=lG.activeTeam;
-  if(active>=0&&active!==idx){
-    const at=lG.teams&&lG.teams[active];
-    const done=at&&at.pts<=0&&(at.awardedToday||0)>0;
-    if(!done){
-      document.getElementById('loginErr').textContent=TNAME[active]+' がプレイ中です';
+  const claim=await claimTeam(idx);
+  if(!claim.ok){
+    if(claim.reason==='active'){
+      document.getElementById('loginErr').textContent=TNAME[claim.active]+' がプレイ中です';
       document.getElementById('loginErr').style.display='block';
-      return;
+    }else if(claim.reason==='done'){
+      switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    }else{
+      document.getElementById('loginErr').textContent='ログイン保存に失敗しました';
+      document.getElementById('loginErr').style.display='block';
     }
-    if(latest) latest.activeTeam=-1;
-    G.activeTeam=-1;
+    return;
   }
-  const teamState=(latest||G).teams&&(latest||G).teams[idx];
-  if(teamState&&teamState.pts<=0&&(teamState.awardedToday||0)>0){
-    myTeam=-1; _gameReady=false;
-    localStorage.setItem('tb3_myTeam',-1);
-    document.getElementById('loginOv').classList.remove('show');
-    setMsg('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
-    render(); return;
-  }
-  myTeam=idx; _gameReady=true; _finishedTeam=-1; pendingCells=[];
-  G.activeTeam=idx;
-  localStorage.setItem('tb3_myTeam', myTeam);
-  save();
   document.getElementById('loginOv').classList.remove('show');
   document.getElementById('loginErr').style.display='none';
   setMsg(''); updateMultiBar(); render(); playBGM(myTeam);
   showLoginAwardNotif();
   setTimeout(async()=>{
-    if(myTeam<0) return;
-    const recheck=await loadFromServer();
-    if(recheck&&recheck.activeTeam>=0&&recheck.activeTeam!==myTeam){
-      myTeam=-1; _gameReady=false; G.activeTeam=recheck.activeTeam;
-      pendingCells=[]; updateMultiBar();
-      localStorage.setItem('tb3_myTeam',-1);
-      setMsg('👁 '+TNAME[recheck.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました');
-      render();
-    }
+    await verifyActiveClaim();
   },2000);
 });
 
@@ -1347,10 +1378,14 @@ document.getElementById('bgmBtn').addEventListener('click',()=>{
 });
 document.getElementById('reloginBtn').addEventListener('click',()=>{
   if(myTeam>=0) localStorage.setItem('tb3_lastTeam', myTeam); // クイックログイン用に保持
+  if(myTeam>=0){
+    G.activeTeam=-1;
+    G.activeSince=0;
+    save();
+  }
   myTeam=-1;
+  myActiveSince=0;
   _gameReady=false;
-  G.activeTeam=-1;
-  save();
   localStorage.setItem('tb3_myTeam','-1');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
@@ -1441,17 +1476,23 @@ setInterval(async()=>{
     const at=latest.teams&&latest.teams[latest.activeTeam];
     if(at&&at.pts<=0&&(at.awardedToday||0)>0){
       latest.activeTeam=-1;
+      latest.activeSince=0;
       // サーバーにも反映（自分がアクティブだった場合のみ書き込み）
-      if(myTeam>=0){ G.activeTeam=-1; save(); }
+      if(myTeam>=0){ G.activeTeam=-1; G.activeSince=0; save(); }
     }
   }
   // 別チームがアクティブになった → 自分を自動的に観戦モードへ
   if(myTeam>=0 && latest.activeTeam>=0 && latest.activeTeam!==myTeam){
-    myTeam=-1; _gameReady=false;
-    localStorage.setItem('tb3_myTeam', myTeam);
-    G=latest; G.bonus=G.bonus||{}; sanitizeLoadedGame();
-    render();
-    setMsg('👁 '+TNAME[latest.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました');
+    const mine=G.activeSince||myActiveSince||Date.now();
+    const theirs=latest.activeSince||Date.now();
+    if(mine<theirs){
+      G.activeTeam=myTeam;
+      G.activeSince=mine;
+      save();
+      setMsg(TNAME[myTeam]+' が先に作業中です');
+      return;
+    }
+    switchToSpectator('👁 '+TNAME[latest.activeTeam]+' がプレイ中 — 観戦モードに切り替わりました', latest);
     _prevActiveTeam=latest.activeTeam;
     return;
   }
