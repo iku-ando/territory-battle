@@ -48,6 +48,28 @@ function isInvalidDateWrite(data, current) {
   return sameGame && currentGameDate && data.lastAwardDate !== currentGameDate;
 }
 
+function isPointRollbackWrite(data, current) {
+  if (!data || data._reset || !data.board || !data.teams || !current || !current.board || !current.teams) {
+    return false;
+  }
+  const dataDate = data.gameDate || data.debugDate || data.lastDate;
+  const currentDate = current.gameDate || current.debugDate || current.lastDate;
+  if (!dataDate || dataDate !== currentDate) return false;
+
+  const sameBoard = JSON.stringify(data.board) === JSON.stringify(current.board);
+  if (!sameBoard) return false;
+
+  const currentHasPoints = current.teams.some((t) => (t.pts || 0) > 0);
+  const incomingAllZero = data.teams.every((t) => (t.pts || 0) <= 0);
+  if (currentHasPoints && incomingAllZero) return true;
+
+  const currentAwarded = current.teams.some((t) => (t.awardedToday || 0) > 0);
+  const incomingAwardZero = data.teams.every((t) => (t.awardedToday || 0) <= 0);
+  if (currentAwarded && incomingAwardZero) return true;
+
+  return false;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -65,6 +87,9 @@ export default async function handler(req, res) {
         return res.status(409).json({ success: false, error: 'stale or invalid game-date write rejected' });
       }
       normalizeGameState(data, current);
+      if (isPointRollbackWrite(data, current)) {
+        return res.status(409).json({ success: false, error: 'point rollback write rejected' });
+      }
       data.updated_at = new Date().toISOString();
       const r = await fetch(BLOB_URL, {
         method: 'PUT',

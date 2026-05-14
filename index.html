@@ -334,7 +334,6 @@ async function awardDailyPoints(fetchDate){
   G.awardedDates=G.awardedDates||{};
   if(G.awardedDates[fetchDate]){
     G.lastAwardDate=fetchDate;
-    save();
     return;
   }
   const targetDate=prevDay(fetchDate); // 前日のデータを取得
@@ -392,7 +391,7 @@ async function checkAndAwardDaily(){
   G.awardedDates=G.awardedDates||{};
   const curDate=getAwardDate();
   if(G.awardedDates[curDate]){
-    if(G.lastAwardDate!==curDate){G.lastAwardDate=curDate; save();}
+    if(G.lastAwardDate!==curDate) G.lastAwardDate=curDate;
     return;
   }
   if(G.lastAwardDate===curDate) return; // すでに付与済み
