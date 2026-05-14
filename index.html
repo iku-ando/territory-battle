@@ -1504,11 +1504,7 @@ document.getElementById('adminPwInput').addEventListener('keydown',(e)=>{
 });
 document.getElementById('adminClose').addEventListener('click',()=>{
   document.getElementById('adminOv').classList.remove('show');
-  if(G.board&&G.board.length>0){
-    document.getElementById('loginPw').value='';
-    document.getElementById('loginErr').style.display='none';
-    document.getElementById('loginOv').classList.add('show');
-  }
+  // 閲覧モードのまま閉じる（ログインポップアップは出さない）
 });
 // ========== BGM ==========
 const BGM_URLS = [
