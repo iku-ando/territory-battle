@@ -382,14 +382,14 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
-  const curDate=getAwardDate(); // 本番はtoday()、デバッグ時だけdebugDate基準
+  const curDate=getAwardDate();
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
   if(_gameReady) showLoginAwardNotif();
 }
 
 function getAwardDate(){
-  return G.debugMode&&G.debugDate ? G.debugDate : today();
+  return G.debugMode&&G.debugDate ? G.debugDate : (G.lastDate||G.gameStart||today());
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -419,7 +419,7 @@ function initG(members, startDate, passwords){
   G.pending=null;
   G.activeTeam=-1; // 現在ログイン中のチーム（-1=なし）
   G.bonus={};
-  G.lastDate=today();
+  G.lastDate=startDate;
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.gameStart=startDate;
   G.debugDate=startDate; // デバッグ用仮想日付（本番では未使用）
@@ -1394,18 +1394,7 @@ document.getElementById('game').style.display='flex';
 
 setInterval(async()=>{
   if(G.board&&G.board.length){
-    const t=today();
-    if(G.lastDate!==t){
-      // 日付変わり → 全チームの未使用PTを没収
-      G.teams.forEach(team=>{
-        team.pts=0;
-        team.awardedToday=0;
-      });
-      G.lastDate=t;
-      _finishedTeam=-1; // 新しい日なのでリセット
-      save(); render();
-    }
-    // 今日まだ付与されていなければ自動付与
+    // ゲーム内日付の分だけ付与する。実日付には自動で追従しない。
     await checkAndAwardDaily();
   }
 },60000);
