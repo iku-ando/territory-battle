@@ -1047,7 +1047,9 @@ function showGame(){
   document.getElementById('adminOv').classList.remove('show');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
-  document.getElementById('loginOv').classList.add('show');
+  // 閲覧モードでスタート（ログインポップアップは出さない）
+  myTeam=-1;
+  localStorage.setItem('tb3_myTeam','-1');
   requestAnimationFrame(initSearchlights);
 }
 
@@ -1091,11 +1093,12 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
   G.bonus=G.bonus||{};
   G.passwords=G.passwords||['','','',''];
   sanitizeLoadedGame();
+  myTeam=-1;
+  localStorage.setItem('tb3_myTeam','-1');
   document.getElementById('game').style.display='flex';
   document.getElementById('adminOv').classList.remove('show');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
-  document.getElementById('loginOv').classList.add('show');
   render();
   requestAnimationFrame(initSearchlights);
 });
@@ -1323,10 +1326,11 @@ document.getElementById('reloginBtn').addEventListener('click',()=>{
   _gameReady=false;
   G.activeTeam=-1;
   save();
-  localStorage.removeItem('tb3_myTeam');
+  localStorage.setItem('tb3_myTeam','-1');
   document.getElementById('loginPw').value='';
   document.getElementById('loginErr').style.display='none';
-  document.getElementById('loginOv').classList.add('show');
+  // 閲覧モードに戻す（ポップアップなし）
+  render();
 });
 
 document.getElementById('resetBtn').addEventListener('click',()=>{
