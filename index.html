@@ -1506,6 +1506,13 @@ document.getElementById('adminClose').addEventListener('click',()=>{
   document.getElementById('adminOv').classList.remove('show');
   // 閲覧モードのまま閉じる（ログインポップアップは出さない）
 });
+
+// オーバーレイ外クリックで閉じる（loginOv・adminOv）
+['loginOv','adminOv'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{
+    if(e.target.id===id) document.getElementById(id).classList.remove('show');
+  });
+});
 // ========== BGM ==========
 const BGM_URLS = [
   'https://static-cos.mureka.ai/cos-prod/song/audio/20260330/music_130425976586243_NEioTTZCxL3EAjFDDtxxZJ_unjjrq.mp3',
