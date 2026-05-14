@@ -370,7 +370,7 @@ async function awardDailyPoints(fetchDate){
 // 今日まだ付与されていなければ自動実行
 function showLoginAwardNotif(){
   if(myTeam<0) return;
-  const curDate=G.debugDate||today();
+  const curDate=getAwardDate();
   if(G.lastAwardDate!==curDate) return;
   // 1チーム1日1回のみ表示（notifKeyで管理）
   const notifKey='tb3_notified_'+curDate+'_'+myTeam;
@@ -382,10 +382,14 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
-  const curDate=G.debugDate||today(); // 本番はtoday()、デバッグ時はdebugDate基準
+  const curDate=getAwardDate(); // 本番はtoday()、デバッグ時だけdebugDate基準
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
   if(_gameReady) showLoginAwardNotif();
+}
+
+function getAwardDate(){
+  return G.debugMode&&G.debugDate ? G.debugDate : today();
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -419,6 +423,7 @@ function initG(members, startDate, passwords){
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
   G.gameStart=startDate;
   G.debugDate=startDate; // デバッグ用仮想日付（本番では未使用）
+  G.debugMode=false;
   G.passwords=passwords;
   fillCorners();
   genBonusPos().forEach(([r,c])=>{ if(G.board[r][c]===-1) G.bonus[r+','+c]=-1; });
@@ -443,6 +448,7 @@ function sanitizeLoadedGame(){
   // 新フィールドの補完（旧データ互換）
   if(!G.lastAwardDate) G.lastAwardDate='';
   if(G.activeTeam===undefined) G.activeTeam=-1;
+  if(G.debugMode===undefined) G.debugMode=false;
   G.teams&&G.teams.forEach((t,i)=>{
     t.name=TNAME[i]; // 常に最新チーム名で上書き
     if(t.talkCarry===undefined) t.talkCarry=t.carry||0;
@@ -1105,6 +1111,10 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
 
 // デバッグ：翌日に進む（仮想日付を1日進めて自動付与）
 document.getElementById('debugNextBtn').addEventListener('click',()=>{
+  if(!G.debugMode){
+    G.debugMode=true;
+    G.debugDate=G.lastAwardDate||today();
+  }
   const cur=G.debugDate||today();
   if(!confirm('デバッグ：翌日に進めますか？\n現在の仮想日付: '+cur)) return;
   const d=new Date(cur+'T00:00:00');
@@ -1123,7 +1133,8 @@ document.getElementById('debugNextBtn').addEventListener('click',()=>{
 
 function updateDebugDateInfo(){
   const el=document.getElementById('debugDateInfo');
-  if(el&&G.debugDate) el.textContent='仮想日付: '+G.debugDate;
+  if(!el) return;
+  el.textContent=G.debugMode&&G.debugDate ? '仮想日付: '+G.debugDate : '本番日付: '+today();
 }
 
 // ログイン処理
@@ -1475,7 +1486,7 @@ function openAdmin(){
   const statusEl=document.getElementById('awardStatus');
   if(statusEl){
     const lastAward=G.lastAwardDate||'未付与';
-    const curDate=G.debugDate||today();
+    const curDate=getAwardDate();
     statusEl.textContent='前回付与: '+lastAward+'　／　取得対象: '+prevDay(curDate)+'の会話データ';
   }
   updateDebugDateInfo();
