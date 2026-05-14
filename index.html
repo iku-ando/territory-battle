@@ -370,10 +370,10 @@ async function awardDailyPoints(fetchDate){
 // 今日まだ付与されていなければ自動実行
 function showLoginAwardNotif(){
   if(myTeam<0) return;
-  if(G.lastAwardDate!==today()) return;
+  const curDate=G.debugDate||today();
+  if(G.lastAwardDate!==curDate) return;
   // 1チーム1日1回のみ表示（notifKeyで管理）
-  // ※起動時は_gameReady=falseのためここには到達しない
-  const notifKey='tb3_notified_'+today()+'_'+myTeam;
+  const notifKey='tb3_notified_'+curDate+'_'+myTeam;
   if(localStorage.getItem(notifKey)) return;
   localStorage.setItem(notifKey,'1');
   const t=G.teams[myTeam];
@@ -382,10 +382,10 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
-  const t=today();
-  if(G.lastAwardDate===t) return; // 今日はすでに付与済み
-  await awardDailyPoints(t);
-  if(_gameReady) showLoginAwardNotif(); // ログイン済みの場合のみ通知（起動時はloginOv表示前なのでスキップ）
+  const curDate=G.debugDate||today(); // 本番はtoday()、デバッグ時はdebugDate基準
+  if(G.lastAwardDate===curDate) return; // すでに付与済み
+  await awardDailyPoints(curDate);
+  if(_gameReady) showLoginAwardNotif();
 }
 const START_CELLS=new Set(['0,0','0,'+(COLS-1),(ROWS-1)+',0',(ROWS-1)+','+(COLS-1)]);
 
@@ -1073,10 +1073,8 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   initG(members, startDate, passwords);
   const startBtn=document.getElementById('startBtn');
   startBtn.disabled=true; startBtn.textContent='データ取得中…';
-  // 開始日の前日データを取得してPT付与
+  // 開始日の前日データを取得してPT付与（lastAwardDate=startDateになる）
   await awardDailyPoints(startDate);
-  // 今日の日付に合わせて再付与を防ぐ（startDateが過去でもcheckAndAwardDailyが発火しないよう）
-  G.lastAwardDate=today();
   startBtn.textContent='保存中…';
   try{
     G._savedAt=Date.now();
@@ -1119,11 +1117,8 @@ document.getElementById('debugNextBtn').addEventListener('click',()=>{
   save();
   updateDebugDateInfo();
   // 翌日の自動付与（prevDay(G.debugDate)のデータを取得）
-  awardDailyPoints(G.debugDate).then(()=>{
-    // 付与後にlastAwardDateを今日に合わせて二重付与を防止
-    G.lastAwardDate=today();
-    save();
-  });
+  // lastAwardDate=G.debugDateになるので、checkAndAwardDailyもdebugDate基準でスキップされる
+  awardDailyPoints(G.debugDate);
 });
 
 function updateDebugDateInfo(){
