@@ -90,6 +90,8 @@ function isPointRollbackWrite(data, current) {
   const dataDate = data.gameDate || data.debugDate || data.lastDate;
   const currentDate = current.gameDate || current.debugDate || current.lastDate;
   if (!dataDate || dataDate !== currentDate) return false;
+  if (data.gameStart && current.gameStart && data.gameStart !== current.gameStart) return false;
+  if (data.lastAwardDate === dataDate && current.lastAwardDate !== currentDate) return false;
 
   const sameBoard = JSON.stringify(data.board) === JSON.stringify(current.board);
   if (!sameBoard) return false;
@@ -103,6 +105,26 @@ function isPointRollbackWrite(data, current) {
   if (currentAwarded && incomingAwardZero) return true;
 
   return false;
+}
+
+function isUnexpectedPointIncreaseWrite(data, current) {
+  if (!data || data._reset || !data.board || !data.teams || !current || !current.board || !current.teams) {
+    return false;
+  }
+  const dataDate = data.gameDate || data.debugDate || data.lastDate;
+  const currentDate = current.gameDate || current.debugDate || current.lastDate;
+  if (!dataDate || dataDate !== currentDate) return false;
+  if (data.gameStart && current.gameStart && data.gameStart !== current.gameStart) return false;
+  if (data.lastAwardDate === dataDate && current.lastAwardDate !== currentDate) return false;
+
+  const sameBoard = JSON.stringify(data.board) === JSON.stringify(current.board);
+  if (!sameBoard) return false;
+
+  return data.teams.some((team, i) => {
+    const incomingPts = Number(team && team.pts || 0);
+    const currentPts = Number(current.teams[i] && current.teams[i].pts || 0);
+    return incomingPts > currentPts;
+  });
 }
 
 export default async function handler(req, res) {
@@ -124,6 +146,9 @@ export default async function handler(req, res) {
       normalizeGameState(data, current);
       if (isPointRollbackWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'point rollback write rejected' });
+      }
+      if (isUnexpectedPointIncreaseWrite(data, current)) {
+        return res.status(409).json({ success: false, error: 'same-day point increase write rejected' });
       }
       data.updated_at = new Date().toISOString();
       const r = await fetch(BLOB_URL, {
