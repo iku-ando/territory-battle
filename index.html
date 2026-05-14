@@ -401,6 +401,7 @@ let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
+let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
 
 function initG(members, startDate, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -489,20 +490,33 @@ const API_URL='/api/game-state';
 function save(){
   // ローカルタイムスタンプを付与（同期判定用）
   G._savedAt = Date.now();
+  const payload=JSON.stringify(G);
   // localStorageにバックアップ
   try{
-    localStorage.setItem('tb3',JSON.stringify(G));
+    localStorage.setItem('tb3',payload);
     localStorage.setItem('tb3_myTeam', myTeam);
   }catch(e){}
-  // EC2に非同期保存
-  fetch(API_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(G)
-  }).then(async r=>{
-    // サーバーが返したupdated_atを記録
-    try{const d=await r.json();if(d.success){};}catch(e){}
-  }).catch(()=>{});
+  // サーバーに保存
+  _saveChain=_saveChain.catch(()=>{}).then(()=>fetch(API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:payload
+    }).then(async r=>{
+      // サーバーが返したupdated_atを記録
+      try{
+        const d=await r.json();
+        if(!r.ok||!d.success) throw new Error((d&&d.error)||'save failed');
+        return d;
+      }catch(e){
+        if(!r.ok) throw e;
+        return {success:true};
+      }
+    })
+  ).catch(e=>{
+    setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
+    return {success:false,error:e.message};
+  });
+  return _saveChain;
 }
 
 function load(){
@@ -1110,7 +1124,7 @@ document.getElementById('resumeBtn').addEventListener('click',()=>{
 });
 
 // デバッグ：翌日に進む（仮想日付を1日進めて自動付与）
-document.getElementById('debugNextBtn').addEventListener('click',()=>{
+document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
   if(!G.debugMode){
     G.debugMode=true;
     G.debugDate=G.lastAwardDate||today();
@@ -1122,13 +1136,10 @@ document.getElementById('debugNextBtn').addEventListener('click',()=>{
   G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
   G.lastAwardDate=''; // リセットして再付与可能に
   G.lastDate=G.debugDate;
-  // 全チームのPT没収（日付変わり扱い）
-  G.teams.forEach(t=>{t.pts=0;t.awardedToday=0;});
-  save();
   updateDebugDateInfo();
   // 翌日の自動付与（prevDay(G.debugDate)のデータを取得）
   // lastAwardDate=G.debugDateになるので、checkAndAwardDailyもdebugDate基準でスキップされる
-  awardDailyPoints(G.debugDate);
+  await awardDailyPoints(G.debugDate);
 });
 
 function updateDebugDateInfo(){
@@ -1228,7 +1239,7 @@ document.getElementById('multiOk').addEventListener('click',()=>{
   lockAndConfirm(
     pendingCells.length+'マスを確定する？',
     body,
-    ()=>{
+    async ()=>{
       const captured=[...pendingCells];
       pendingCells=[];
       captured.forEach(p=>{
@@ -1240,7 +1251,9 @@ document.getElementById('multiOk').addEventListener('click',()=>{
       const msg=captured.length+'マス取得！（'+net+'pt消費'+(bonusCnt?'、ボーナス+'+bonusGain+'pt':'')+')';
       setMsg(msg);
       updateMultiBar();
-      save(); render();
+      render();
+      const saved=await save();
+      if(!saved||!saved.success) return;
       const hasBonus=captured.some(p=>p.isBonus);
       showBannerEffect(myTeam, hasBonus, captured.length, net);
       captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
@@ -1412,6 +1425,12 @@ setInterval(async()=>{
   if(G._savedAt&&Date.now()-G._savedAt<4000) return;
   const latest=await loadFromServer();
   if(!latest||!latest.board) return;
+  const latestSavedAt=latest._savedAt||Date.parse(latest.updated_at||'')||0;
+  const curSavedAt=G._savedAt||0;
+  if(curSavedAt&&latestSavedAt&&latestSavedAt<curSavedAt){
+    save();
+    return;
+  }
   // ボード状態を文字列化して変化チェック（updated_at比較より確実）
   const latestBoard=JSON.stringify(latest.board);
   const curBoard=G.board?JSON.stringify(G.board):'';
