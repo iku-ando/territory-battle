@@ -1,5 +1,6 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
 const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e20d9-7a39-71a3-b4eb-8983a660e2c5';
+const PT_PER = 80;
 
 async function loadCurrentState() {
   const r = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
@@ -26,7 +27,41 @@ function normalizeGameState(data, current) {
   }
   data.awardedDates = data.awardedDates || {};
   if (data.lastAwardDate) data.awardedDates[data.lastAwardDate] = true;
+  repairZeroAwardState(data);
   return data;
+}
+
+function inferAwardedPoints(team) {
+  const mins = Number(team.talkMins || 0);
+  const carry = Number(team.talkCarry ?? team.carry ?? 0);
+  if (mins <= 0) return 0;
+  for (let pts = 0; pts <= 24; pts += 1) {
+    const previousCarry = pts * PT_PER + carry - mins;
+    if (previousCarry >= 0 && previousCarry < PT_PER) return pts;
+  }
+  return Math.max(0, Math.floor(mins / PT_PER));
+}
+
+function repairZeroAwardState(data) {
+  if (!data || !data.teams || !data.lastAwardDate) return false;
+  const allPtsZero = data.teams.every((t) => (t.pts || 0) <= 0);
+  const allAwardZero = data.teams.every((t) => (t.awardedToday || 0) <= 0);
+  const hasTalkData = data.teams.some((t) => (t.talkMins || 0) > 0);
+  if (!allPtsZero || !allAwardZero || !hasTalkData) return false;
+
+  let repaired = false;
+  data.teams.forEach((team) => {
+    const awarded = inferAwardedPoints(team);
+    if (awarded > 0) {
+      team.awardedToday = awarded;
+      team.pts = awarded;
+      repaired = true;
+    }
+  });
+  if (repaired) {
+    data._repairedZeroPtsAt = new Date().toISOString();
+  }
+  return repaired;
 }
 
 function isInvalidDateWrite(data, current) {
@@ -104,6 +139,15 @@ export default async function handler(req, res) {
       });
       if (!r.ok) return res.status(200).json({ success: false, error: 'No saved state' });
       const data = await r.json();
+      const repaired = repairZeroAwardState(data);
+      if (repaired) {
+        data.updated_at = new Date().toISOString();
+        await fetch(BLOB_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(data),
+        }).catch(() => {});
+      }
       return res.status(200).json({ success: true, data });
     }
   } catch (e) {
