@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Sounds Good</title>
+<title>Sounds Good!</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -41,6 +41,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .sc-row span:last-child{color:#f0f0f0;}
 .controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;width:602px;max-width:100%;}
 .turn-box{font-family:'Press Start 2P',monospace;font-size:8px;padding:8px 12px;border:2px solid #fff;background:#3a3a3a;}
+.turn-timeout{display:inline-block;margin-left:8px;color:#ffcc22;}
 .btn-sm{font-family:'Press Start 2P',monospace;font-size:7px;background:transparent;color:#aaa;border:2px solid #555;padding:6px 10px;cursor:pointer;}
 .btn-sm:hover{border-color:#aaa;color:#f0f0f0;}
 #msg{font-size:12px;color:#aaa;padding:4px 8px;}
@@ -130,7 +131,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .note{font-size:11px;color:#888;margin-top:6px;line-height:1.8;}
 /* バンド画像コーナー */
 .band-wrap{position:relative;width:602px;max-width:100%;}
-.band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;z-index:1;}
+.band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;z-index:1;cursor:pointer;}
 .band-img.tl{top:0;left:-280px;}
 .band-img.tr{top:0;right:-280px;}
 .band-img.bl{bottom:0;left:-280px;}
@@ -163,7 +164,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 <div class="spotlight spot-b"></div>
 <div class="spotlight spot-c"></div>
 <div class="spotlight spot-d"></div>
-<h1>SOUNDS GOOD</h1>
+<h1>SOUNDS GOOD!</h1>
 
 <!-- 管理者オーバーレイ -->
 <div class="overlay" id="adminOv">
@@ -311,6 +312,7 @@ const COLS=12,ROWS=12;
 const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
 const PT_PER=80; // 80分で1pt
+const ACTIVE_TIMEOUT_MS=60000;
 const API_ORIGIN=location.protocol==='file:'?'https://territory-battle-seven.vercel.app':'';
 const API_BASE=API_ORIGIN+'/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
@@ -752,8 +754,9 @@ function lockAndConfirm(title, body, onOk){
     localStorage.removeItem('tb3_myTeam');
     document.getElementById('loginPw').value='';
     document.getElementById('loginErr').style.display='none';
-    document.getElementById('loginOv').classList.add('show');
-    setMsg('操作タイムアウト — 再ログインしてください');
+    document.getElementById('loginOv').classList.remove('show');
+    render();
+    setMsg('タイムアウトしました — ログアウトしました');
   },60000);
   showConfirm(title, body, ()=>{
     clearTimeout(_lockTimer);
@@ -1066,6 +1069,23 @@ function updateBgHighlight(teamIdx){
   });
 }
 
+function updateTurnBox(){
+  const el=document.getElementById('turnbox');
+  if(!el) return;
+  const seconds=activeTimeoutSeconds(G);
+  if(myTeam>=0){
+    const timeoutText=seconds===null?'':'<span class="turn-timeout">タイムアウトまで '+seconds+'秒</span>';
+    el.innerHTML='<span style="display:inline-block;width:8px;height:8px;background:'+TCOL[myTeam]+';border-radius:50%;margin-right:6px;"></span>'+TNAME[myTeam]+' でプレイ中'+timeoutText;
+    return;
+  }
+  if(G.activeTeam>=0){
+    const timeoutText=seconds===null?'':' / 残り '+seconds+'秒';
+    el.innerHTML='👁 観戦中 <span style="color:'+TCOL[G.activeTeam]+'">'+TNAME[G.activeTeam]+' が操作中'+timeoutText+'</span>';
+    return;
+  }
+  el.innerHTML='👁 観戦中';
+}
+
 function render(){
   if(myTeam>=0) updateBgHighlight(myTeam);
   document.getElementById('stats').innerHTML=G.teams.map((t,i)=>`
@@ -1077,13 +1097,7 @@ function render(){
       <div class="sc-row"><span>総会話量</span><span>${t.talkTotal||0}分</span></div>
     </div>`).join('');
 
-  // ログイン中チームを表示
-  if(myTeam>=0){
-    document.getElementById('turnbox').innerHTML=
-      '<span style="display:inline-block;width:8px;height:8px;background:'+TCOL[myTeam]+';border-radius:50%;margin-right:6px;"></span>'+TNAME[myTeam]+' でプレイ中';
-  } else {
-    document.getElementById('turnbox').innerHTML='👁 観戦中';
-  }
+  updateTurnBox();
 
   const boardEl=document.getElementById('board');
   boardEl.innerHTML='';
@@ -1233,6 +1247,38 @@ function switchToSpectator(message, latest){
   if(message) setMsg(message);
 }
 
+function activeTimeoutSeconds(game=G){
+  if(!game||game.activeTeam<0||!game.activeSince) return null;
+  return Math.max(0, Math.ceil((game.activeSince+ACTIVE_TIMEOUT_MS-Date.now())/1000));
+}
+
+let _timeoutSaveInFlight=false;
+async function expireActiveTeamIfNeeded(){
+  const seconds=activeTimeoutSeconds(G);
+  if(seconds===null||seconds>0||_timeoutSaveInFlight) return false;
+  const timedOutTeam=G.activeTeam;
+  _timeoutSaveInFlight=true;
+  G.activeTeam=-1;
+  G.activeSince=0;
+  if(myTeam===timedOutTeam){
+    myTeam=-1;
+    myActiveSince=0;
+    _gameReady=false;
+    pendingCells=[];
+    localStorage.setItem('tb3_myTeam','-1');
+    document.getElementById('confirmOv').classList.remove('show');
+    document.getElementById('loginOv').classList.remove('show');
+    updateMultiBar();
+    render();
+    setMsg('タイムアウトしました — ログアウトしました');
+  } else {
+    render();
+  }
+  await save();
+  _timeoutSaveInFlight=false;
+  return true;
+}
+
 async function claimTeam(idx){
   const latest=await loadFromServer();
   if(latest&&latest.board){
@@ -1240,6 +1286,8 @@ async function claimTeam(idx){
     G.bonus=G.bonus||{};
     sanitizeLoadedGame();
   }
+
+  await expireActiveTeamIfNeeded();
 
   if(isGameEnded()){
     endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true);
@@ -1496,6 +1544,10 @@ async function tickDateChange(){
   }
 }
 setInterval(tickDateChange, HAS_MOCK_CLOCK?1000:60000);
+setInterval(async()=>{
+  await expireActiveTeamIfNeeded();
+  updateTurnBox();
+},1000);
 
 let _prevActiveTeam=-1; // ターン交代検知用
 let _finishedTeam=-1;  // このデバイスで本日行動終了したチーム（ターン交代ポップ抑制用）
@@ -1533,6 +1585,22 @@ setInterval(async()=>{
   const curBoard=G.board?JSON.stringify(G.board):'';
   const latestPts=JSON.stringify((latest.teams||[]).map(t=>t.pts));
   const curPts=G.teams?JSON.stringify(G.teams.map(t=>t.pts)):'';
+  if(activeTimeoutSeconds(latest)===0){
+    const timedOutTeam=latest.activeTeam;
+    latest.activeTeam=-1;
+    latest.activeSince=0;
+    if(myTeam===timedOutTeam){
+      switchToSpectator('タイムアウトしました — ログアウトしました', latest);
+      save();
+      return;
+    }
+    G=latest;
+    G.bonus=G.bonus||{};
+    sanitizeLoadedGame();
+    render();
+    save();
+    return;
+  }
   if(isGameEnded(latest)){
     latest.activeTeam=-1;
     latest.activeSince=0;
@@ -1693,6 +1761,16 @@ function playBGM(teamIdx) {
   audio.volume = 0.05;
   audio.play().catch(()=>{});
 }
+
+function selectTeamBGM(teamIdx) {
+  bgmMuted = false;
+  document.getElementById('bgmBtn').textContent='♪ BGM OFF';
+  playBGM(teamIdx);
+}
+
+document.querySelectorAll('.band-img').forEach((img, teamIdx)=>{
+  img.addEventListener('click',()=>selectTeamBGM(teamIdx));
+});
 
 // ========== SEARCHLIGHTS ==========
 let slRAF = null;
