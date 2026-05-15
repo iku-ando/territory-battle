@@ -1620,15 +1620,38 @@ document.getElementById('adminPwOk').addEventListener('click',()=>{
 document.getElementById('adminPwInput').addEventListener('keydown',(e)=>{
   if(e.key==='Enter') document.getElementById('adminPwOk').click();
 });
-document.getElementById('adminClose').addEventListener('click',()=>{
+function closeAdmin(){
+  const endEl=document.getElementById('gameEndDate');
+  if(endEl){
+    const nextEnd=endEl.value;
+    if(!nextEnd){
+      alert('ゲーム終了日を設定してください');
+      return;
+    }
+    if(nextEnd<today()){
+      alert('ゲーム終了日は今日以降の日付を設定してください');
+      return;
+    }
+    if(G.board&&G.board.length&&G.gameEnd!==nextEnd){
+      G.gameEnd=nextEnd;
+      save();
+      if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)) render();
+      else render();
+    }
+  }
   document.getElementById('adminOv').classList.remove('show');
   // 閲覧モードのまま閉じる（ログインポップアップは出さない）
+}
+document.getElementById('adminClose').addEventListener('click',()=>{
+  closeAdmin();
 });
 
 // オーバーレイ外クリックで閉じる（loginOv・adminOv）
 ['loginOv','adminOv'].forEach(id=>{
   document.getElementById(id).addEventListener('click',e=>{
-    if(e.target.id===id) document.getElementById(id).classList.remove('show');
+    if(e.target.id!==id) return;
+    if(id==='adminOv') closeAdmin();
+    else document.getElementById(id).classList.remove('show');
   });
 });
 // ========== BGM ==========
