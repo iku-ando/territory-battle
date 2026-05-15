@@ -195,7 +195,7 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <!-- ゲーム中のみ表示: 管理操作 -->
     <div class="admin-section" id="adminActions" style="display:none;">
       <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">GAME CONTROLS</p>
-      <p style="font-size:11px;color:#666;margin-bottom:10px;">前日の会話量を自動取得してPTを付与します</p>
+      <p style="font-size:11px;color:#666;margin-bottom:10px;">直前の平日の会話量を自動取得してPTを付与します</p>
       <div id="awardStatus" style="font-size:11px;color:#888;margin-bottom:8px;min-height:14px;"></div>
       <div class="admin-actions" style="flex-direction:column;gap:8px;">
         <button class="btn-sm" id="debugNextBtn" style="width:100%;color:#888;border-color:#444;font-size:10px;">🔧 翌日に進む（デバッグ）</button>
@@ -340,24 +340,24 @@ async function fetchTalkMinutes(groupIdx, targetDate){
   } catch(e){ return null; }
 }
 
-// 指定日の前日を返す
-function prevDay(dateStr){
+// 指定日の直前の平日を返す（月曜は前週金曜）
+function prevBusinessDay(dateStr){
   const d=new Date(dateStr+'T00:00:00');
-  d.setDate(d.getDate()-1);
+  d.setDate(d.getDate()-(d.getDay()===1?3:1));
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
-// 全チームの前日会話データを取得してPTを付与
-// fetchDate: 付与する「本日」の日付。prevDay(fetchDate) のデータを取得する
+// 全チームの直前平日会話データを取得してPTを付与
+// fetchDate: 付与する「本日」の日付。prevBusinessDay(fetchDate) のデータを取得する
 async function awardDailyPoints(fetchDate){
   if(G.lastAwardDate===fetchDate) return true;
-  const targetDate=prevDay(fetchDate); // 前日のデータを取得
+  const targetDate=prevBusinessDay(fetchDate); // 直前の平日データを取得
   setMsg('⏳ 会話データを取得中...');
 
   // 4チーム並列取得
   const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
 
-  // どれか1チームでも取得失敗したら、前日の持ち点を壊さず中止
+  // どれか1チームでも取得失敗したら、前回の持ち点を壊さず中止
   if(results.some(r=>r===null)){
     setMsg('❌ 会話データの取得に失敗しました');
     setTimeout(()=>setMsg(''),4000);
@@ -450,7 +450,7 @@ function initG(members, startDate, gameEnd, passwords){
   G.activeTeam=-1; // 現在ログイン中のチーム（-1=なし）
   G.activeSince=0; // 操作権を取った時刻。小さい方を優先する
   G.bonus={};
-  G.gameDate=startDate; // ゲーム上の現在日。この日の前日分をPT付与する。
+  G.gameDate=startDate; // ゲーム上の現在日。この日の直前平日分をPT付与する。
   G.lastDate=startDate; // 旧データ互換
   G.lastRealDate=today(); // 本番運用で実日付の切り替わりを検知する
   G.lastAwardDate=''; // 本日PT付与済みかどうかの判定用
@@ -732,7 +732,7 @@ function showAwardPopup(teamIdx, pts, carry){
   } else {
     document.getElementById('turnTitle').textContent='📭 本日のポイントはありませんでした';
     document.getElementById('turnBody').innerHTML=
-      '前日の会話が80分未満でした。'
+      '直前の平日の会話が80分未満でした。'
       +'<br><span style="font-size:11px;color:#888;">持ち越し: '+carry+'分（80分ごとに1PT）</span>';
     document.getElementById('turnPts').style.color='#aaa';
     document.getElementById('turnPts').textContent='0 PT';
@@ -1183,7 +1183,7 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   initG(members, startDate, gameEnd, passwords);
   const startBtn=document.getElementById('startBtn');
   startBtn.disabled=true; startBtn.textContent='データ取得中…';
-  // 開始日の前日データを取得してPT付与（lastAwardDate=startDateになる）
+  // 開始日の直前平日データを取得してPT付与（lastAwardDate=startDateになる）
   await awardDailyPoints(startDate);
   startBtn.textContent='保存中…';
   try{
@@ -1237,7 +1237,7 @@ document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
     updateDebugDateInfo();
     return;
   }
-  // 翌日の自動付与（prevDay(nextDate)のデータを取得）
+  // 翌日の自動付与（直前の平日データを取得）
   const ok=await awardDailyPoints(nextDate);
   if(ok) updateDebugDateInfo();
 });
@@ -1723,7 +1723,7 @@ function openAdmin(){
     const curDate=getAwardDate();
     statusEl.textContent=isGameEnded()
       ? 'ゲーム終了済み: PT付与停止中'
-      : '前回付与: '+lastAward+'　／　取得対象: '+prevDay(curDate)+'の会話データ';
+      : '前回付与: '+lastAward+'　／　取得対象: '+prevBusinessDay(curDate)+'の会話データ';
   }
   updateDebugDateInfo();
   document.getElementById('loginOv').classList.remove('show');
