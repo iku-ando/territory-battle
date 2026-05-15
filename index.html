@@ -410,6 +410,10 @@ async function checkAndAwardDaily(){
     render();
     return;
   }
+  if(enterWeekendReadOnly('土日は閲覧モードです', true)){
+    render();
+    return;
+  }
   const curDate=getAwardDate();
   if(G.lastAwardDate===curDate) return; // すでに付与済み
   await awardDailyPoints(curDate);
@@ -486,11 +490,39 @@ function today(){
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
+function isWeekendDate(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  const day=d.getDay();
+  return day===0||day===6;
+}
+
+function isWeekendMode(game=G, dateStr){
+  const cur=dateStr||(game&&game.gameDate)||today();
+  return isWeekendDate(cur);
+}
+
 function isGameEnded(game=G, dateStr){
   const end=game&&game.gameEnd;
   if(!end) return false;
   const cur=dateStr||(game.gameDate||game.debugDate||game.lastDate||today());
   return !!cur && cur>end;
+}
+
+function enterWeekendReadOnly(message, persist=false){
+  if(!isWeekendMode()) return false;
+  let changed=false;
+  if(G.activeTeam>=0){G.activeTeam=-1;G.activeSince=0;changed=true;}
+  if(myTeam>=0){
+    myTeam=-1;
+    myActiveSince=0;
+    _gameReady=false;
+    localStorage.setItem('tb3_myTeam','-1');
+    changed=true;
+  }
+  if(pendingCells.length){pendingCells=[];updateMultiBar();}
+  if(message) setMsg(message);
+  if(persist||changed) save();
+  return true;
 }
 
 function endGameIfNeeded(message, persist=false){
@@ -1156,11 +1188,12 @@ function showGame(){
 }
 
 function canOperate(){
-  return myTeam>=0&&!isGameEnded(); // 終了後は閲覧のみ
+  return myTeam>=0&&!isGameEnded()&&!isWeekendMode(); // 終了後・土日は閲覧のみ
 }
 
 function showNotMyTurn(){
   if(isGameEnded()){setMsg('ゲーム終了日を過ぎたため、閲覧モードです');return;}
+  if(isWeekendMode()){setMsg('土日は閲覧モードです');return;}
   setMsg('⛔ 自分のチームのターンではありません');
 }
 
@@ -1313,6 +1346,9 @@ async function claimTeam(idx){
     endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true);
     return {ok:false, reason:'ended'};
   }
+  if(enterWeekendReadOnly('土日は閲覧モードです', true)){
+    return {ok:false, reason:'weekend'};
+  }
 
   const active=G.activeTeam;
   if(active>=0&&active!==idx){
@@ -1390,6 +1426,8 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
       switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
     }else if(claim.reason==='ended'){
       switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです');
+    }else if(claim.reason==='weekend'){
+      switchToSpectator('土日は閲覧モードです');
     }else{
       errEl.textContent='ログイン保存に失敗しました';
       errEl.style.display='block';
@@ -1573,6 +1611,10 @@ async function tickDateChange(){
       render();
       return;
     }
+    if(enterWeekendReadOnly('土日は閲覧モードです', true)){
+      render();
+      return;
+    }
     const beforeAward=G.lastAwardDate;
     await checkAndAwardDaily();
     if(loggedOutByDateChange){
@@ -1647,6 +1689,15 @@ setInterval(async()=>{
     latest.activeSince=0;
     if(myTeam>=0){
       switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです', latest);
+      save();
+      return;
+    }
+  }
+  if(isWeekendMode(latest)){
+    latest.activeTeam=-1;
+    latest.activeSince=0;
+    if(myTeam>=0){
+      switchToSpectator('土日は閲覧モードです', latest);
       save();
       return;
     }
