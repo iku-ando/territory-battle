@@ -314,6 +314,12 @@ const PT_PER=80; // 80分で1pt
 const API_ORIGIN=location.protocol==='file:'?'https://territory-battle-seven.vercel.app':'';
 const API_BASE=API_ORIGIN+'/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
+const URL_PARAMS=new URLSearchParams(location.search);
+const MOCK_NOW_PARAM=URL_PARAMS.get('mock_now');
+const MOCK_SPEED=Math.max(1, Number(URL_PARAMS.get('mock_speed')||1));
+const MOCK_START_MS=MOCK_NOW_PARAM ? Date.parse(MOCK_NOW_PARAM) : 0;
+const MOCK_REAL_START=Date.now();
+const HAS_MOCK_CLOCK=Number.isFinite(MOCK_START_MS)&&MOCK_START_MS>0;
 
 // APIから発話量（分）を取得（指定日1日分）
 async function fetchTalkMinutes(groupIdx, targetDate){
@@ -460,8 +466,15 @@ function advanceDebugDate(){
   G.debugDate=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
+function nowDate(){
+  if(HAS_MOCK_CLOCK){
+    return new Date(MOCK_START_MS+(Date.now()-MOCK_REAL_START)*MOCK_SPEED);
+  }
+  return new Date();
+}
+
 function today(){
-  const d=new Date();
+  const d=nowDate();
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
 
@@ -1444,6 +1457,13 @@ document.getElementById('game').style.display='flex';
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
     sanitizeLoadedGame();
+    if(HAS_MOCK_CLOCK){
+      G.debugMode=false;
+      G.lastRealDate=today();
+      G.gameDate=today();
+      G.lastDate=today();
+      G.debugDate=today();
+    }
     endGameIfNeeded('', true);
     await checkAndAwardDaily();
     render();
@@ -1454,10 +1474,10 @@ document.getElementById('game').style.display='flex';
   }
 })();
 
-setInterval(async()=>{
+async function tickDateChange(){
   if(G.board&&G.board.length){
     const realToday=today();
-    if(!G.debugMode&&G.lastRealDate!==realToday){
+    if((HAS_MOCK_CLOCK||!G.debugMode)&&G.lastRealDate!==realToday){
       G.lastRealDate=realToday;
       G.gameDate=realToday;
       G.lastDate=realToday;
@@ -1474,7 +1494,8 @@ setInterval(async()=>{
     }
     await checkAndAwardDaily();
   }
-},60000);
+}
+setInterval(tickDateChange, HAS_MOCK_CLOCK?1000:60000);
 
 let _prevActiveTeam=-1; // ターン交代検知用
 let _finishedTeam=-1;  // このデバイスで本日行動終了したチーム（ターン交代ポップ抑制用）
