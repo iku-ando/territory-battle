@@ -132,6 +132,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 /* バンド画像コーナー */
 .band-wrap{position:relative;width:602px;max-width:100%;}
 .band-img{position:absolute;width:280px;height:280px;object-fit:cover;image-rendering:pixelated;border-radius:6px;z-index:1;cursor:pointer;}
+.band-img:hover{filter:brightness(1.12);}
+.music-note{position:absolute;color:#ffcc22;font-family:'Press Start 2P',monospace;font-size:18px;z-index:4;opacity:0;pointer-events:none;text-shadow:0 2px 0 #000,0 0 8px rgba(255,204,34,.75);animation:music-float .72s ease-out forwards;}
+@keyframes music-float{0%{opacity:0;transform:translate(-50%,-20%) scale(.65) rotate(-8deg);}18%{opacity:1;}100%{opacity:0;transform:translate(calc(-50% + var(--mx, 0px)),-72px) scale(1.15) rotate(10deg);}}
 .band-img.tl{top:0;left:-280px;}
 .band-img.tr{top:0;right:-280px;}
 .band-img.bl{bottom:0;left:-280px;}
@@ -1581,7 +1584,7 @@ async function tickDateChange(){
     }
   }
 }
-setInterval(tickDateChange, HAS_MOCK_CLOCK?1000:60000);
+setInterval(tickDateChange, 1000);
 setInterval(async()=>{
   await expireActiveTeamIfNeeded();
   updateTurnBox();
@@ -1807,6 +1810,21 @@ function selectTeamBGM(teamIdx) {
 }
 
 document.querySelectorAll('.band-img').forEach((img, teamIdx)=>{
+  let lastNoteAt=0;
+  img.addEventListener('mousemove',e=>{
+    const now=Date.now();
+    if(now-lastNoteAt<120) return;
+    lastNoteAt=now;
+    const wrap=img.parentElement.getBoundingClientRect();
+    const note=document.createElement('div');
+    note.className='music-note';
+    note.textContent=Math.random()>.5?'♪':'♫';
+    note.style.left=(e.clientX-wrap.left)+'px';
+    note.style.top=(e.clientY-wrap.top)+'px';
+    note.style.setProperty('--mx', (Math.random()*34-17).toFixed(0)+'px');
+    img.parentElement.appendChild(note);
+    setTimeout(()=>note.remove(), 760);
+  });
   img.addEventListener('click',()=>selectTeamBGM(teamIdx));
 });
 
