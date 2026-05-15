@@ -322,6 +322,8 @@ const MOCK_SPEED=Math.max(1, Number(URL_PARAMS.get('mock_speed')||1));
 const MOCK_START_MS=MOCK_NOW_PARAM ? Date.parse(MOCK_NOW_PARAM) : 0;
 const MOCK_REAL_START=Date.now();
 const HAS_MOCK_CLOCK=Number.isFinite(MOCK_START_MS)&&MOCK_START_MS>0;
+const MOCK_ONCE=URL_PARAMS.get('mock_once')==='1';
+let mockFrozenDate='';
 
 // APIから発話量（分）を取得（指定日1日分）
 async function fetchTalkMinutes(groupIdx, targetDate){
@@ -476,6 +478,7 @@ function nowDate(){
 }
 
 function today(){
+  if(mockFrozenDate) return mockFrozenDate;
   const d=nowDate();
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
@@ -731,6 +734,20 @@ function showAwardPopup(teamIdx, pts, carry){
     document.getElementById('turnPts').style.color='#aaa';
     document.getElementById('turnPts').textContent='0 PT';
   }
+  document.getElementById('turnOv').classList.add('show');
+}
+
+function showDateLogoutPopup(awarded){
+  const summary=G.teams.map((t,i)=>
+    '<span style="color:'+TCOL[i]+'">'+TNAME[i]+': '+(t.awardedToday||0)+'PT</span>'
+  ).join('<br>');
+  document.getElementById('turnTitle').style.color='#f0f0f0';
+  document.getElementById('turnTitle').textContent='日付が変わりました';
+  document.getElementById('turnBody').innerHTML=
+    '日付が変わったためログアウトしました。'
+    +(awarded?'<br><br>本日のポイントが付与されました。<br>'+summary:'');
+  document.getElementById('turnPts').style.color='#aaa';
+  document.getElementById('turnPts').textContent='';
   document.getElementById('turnOv').classList.add('show');
 }
 
@@ -1525,22 +1542,43 @@ document.getElementById('game').style.display='flex';
 async function tickDateChange(){
   if(G.board&&G.board.length){
     const realToday=today();
+    let loggedOutByDateChange=false;
     if((HAS_MOCK_CLOCK||!G.debugMode)&&G.lastRealDate!==realToday){
       G.lastRealDate=realToday;
       G.gameDate=realToday;
       G.lastDate=realToday;
       G.debugDate=realToday;
+      if(HAS_MOCK_CLOCK&&MOCK_ONCE) mockFrozenDate=realToday;
       _finishedTeam=-1;
       if(G.activeTeam>=0){
         G.activeTeam=-1;
         G.activeSince=0;
+      }
+      if(myTeam>=0){
+        loggedOutByDateChange=true;
+        myTeam=-1;
+        myActiveSince=0;
+        _gameReady=false;
+        pendingCells=[];
+        localStorage.setItem('tb3_myTeam','-1');
+        document.getElementById('confirmOv').classList.remove('show');
+        document.getElementById('loginOv').classList.remove('show');
+        updateMultiBar();
       }
     }
     if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)){
       render();
       return;
     }
+    const beforeAward=G.lastAwardDate;
     await checkAndAwardDaily();
+    if(loggedOutByDateChange){
+      const awarded=beforeAward!==G.lastAwardDate;
+      const summary=G.teams.map((t,i)=>TNAME[i]+': '+(t.awardedToday||0)+'PT').join(' / ');
+      setMsg('日付が変わったためログアウトしました'+(awarded?'。PT付与: '+summary:''));
+      render();
+      showDateLogoutPopup(awarded);
+    }
   }
 }
 setInterval(tickDateChange, HAS_MOCK_CLOCK?1000:60000);
