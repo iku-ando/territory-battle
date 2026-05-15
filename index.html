@@ -197,7 +197,6 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
         <button class="btn-sm" id="debugNextBtn" style="width:100%;color:#888;border-color:#444;font-size:10px;">🔧 翌日に進む（デバッグ）</button>
         <button class="btn-sm" id="resetBtn" style="width:100%;">↺ RESET</button>
       </div>
-      <div id="debugDateInfo" style="font-size:10px;color:#555;margin-top:8px;text-align:center;"></div>
     </div>
     <div class="admin-section">
       <button class="btn-sm" id="adminClose" style="width:100%;padding:10px;">✕ 閉じる</button>
@@ -250,9 +249,6 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
     <div class="obody">自分のチームのコードを入力してください</div>
     <input type="password" id="loginPw" placeholder="パスワード" style="width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:14px;padding:10px;margin-bottom:16px;text-align:center;">
     <div id="loginErr" style="color:#ff4466;font-size:12px;margin-bottom:12px;display:none;">パスワードが違います</div>
-    <div id="quickLoginArea" style="display:none;margin-bottom:14px;">
-      <button id="quickLoginBtn" style="width:100%;padding:11px;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;letter-spacing:1px;"></button>
-    </div>
     <div class="orow">
       <button class="btn-main" id="loginOk">ログイン ▶</button>
       <button class="btn-sm" id="loginWatch" style="padding:10px 16px;">観戦モード</button>
@@ -1200,9 +1196,6 @@ document.getElementById('debugNextBtn').addEventListener('click',async ()=>{
 });
 
 function updateDebugDateInfo(){
-  const el=document.getElementById('debugDateInfo');
-  if(!el) return;
-  el.textContent=(G.debugMode?'デバッグ日付: ':'ゲーム日付: ')+(G.gameDate||today())+(G.gameEnd?' ／ 終了日: '+G.gameEnd:'');
 }
 
 function isTeamDone(game, idx){
@@ -1375,48 +1368,6 @@ document.getElementById('multiOk').addEventListener('click',()=>{
   );
 });
 
-// クイックログインボタンの表示更新
-function updateQuickLogin(){
-  const last=parseInt(localStorage.getItem('tb3_lastTeam'));
-  const area=document.getElementById('quickLoginArea');
-  const btn=document.getElementById('quickLoginBtn');
-  if(last>=0&&last<=3&&G.teams&&G.teams[last]){
-    btn.textContent=TNAME[last]+' としてログイン ▶';
-    btn.style.background=TCOL[last];
-    btn.style.color='#fff';
-    area.style.display='block';
-  } else {
-    area.style.display='none';
-  }
-}
-
-document.getElementById('quickLoginBtn').addEventListener('click', async ()=>{
-  const idx=parseInt(localStorage.getItem('tb3_lastTeam'));
-  if(idx<0||idx>3) return;
-  const claim=await claimTeam(idx);
-  if(!claim.ok){
-    if(claim.reason==='active'){
-      document.getElementById('loginErr').textContent=TNAME[claim.active]+' がプレイ中です';
-      document.getElementById('loginErr').style.display='block';
-    }else if(claim.reason==='done'){
-      switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
-    }else if(claim.reason==='ended'){
-      switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです');
-    }else{
-      document.getElementById('loginErr').textContent='ログイン保存に失敗しました';
-      document.getElementById('loginErr').style.display='block';
-    }
-    return;
-  }
-  document.getElementById('loginOv').classList.remove('show');
-  document.getElementById('loginErr').style.display='none';
-  setMsg(''); updateMultiBar(); render(); playBGM(myTeam);
-  showLoginAwardNotif();
-  setTimeout(async()=>{
-    await verifyActiveClaim();
-  },2000);
-});
-
 document.getElementById('loginWatch').addEventListener('click',()=>{
   myTeam=-1;
   localStorage.setItem('tb3_myTeam', myTeam);
@@ -1440,7 +1391,6 @@ document.getElementById('bgmBtn').addEventListener('click',()=>{
   }
 });
 document.getElementById('reloginBtn').addEventListener('click',()=>{
-  if(myTeam>=0) localStorage.setItem('tb3_lastTeam', myTeam); // クイックログイン用に保持
   if(myTeam>=0){
     G.activeTeam=-1;
     G.activeSince=0;
@@ -1771,10 +1721,6 @@ function initSearchlights() {
   slTick();
 }
 
-// loginOv が表示されるたびにクイックログインボタンを更新
-new MutationObserver(()=>{
-  if(document.getElementById('loginOv').classList.contains('show')) updateQuickLogin();
-}).observe(document.getElementById('loginOv'),{attributes:true,attributeFilter:['class']});
 </script>
 </body>
 </html>
