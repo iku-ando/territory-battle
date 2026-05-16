@@ -1,5 +1,5 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
-const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019e28e3-4243-77ca-898b-c7b9129dbf51';
+const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e2fb9-da82-74a2-afd2-f3b7379d40c0';
 const PT_PER = 80;
 
 async function loadCurrentState() {

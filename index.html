@@ -159,6 +159,12 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .admin-box{max-width:660px;width:95%;text-align:left;max-height:90vh;overflow-y:auto;}
 .admin-section{border-top:1px solid #444;margin-top:20px;padding-top:16px;}
 .admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+#bootLoading{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;min-height:420px;width:100%;max-width:600px;}
+.boot-card{background:#3a3a3a;border:2px solid #555;padding:28px;width:90%;text-align:center;}
+.boot-title{font-family:'Press Start 2P',monospace;font-size:11px;line-height:1.8;margin-bottom:12px;}
+.boot-text{font-size:13px;color:#aaa;line-height:1.8;}
+.boot-dots::after{content:'';animation:boot-dots 1.2s steps(4,end) infinite;}
+@keyframes boot-dots{0%{content:'';}25%{content:'.';}50%{content:'..';}75%,100%{content:'...';}}
 </style>
 </head>
 <body>
@@ -168,6 +174,12 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 <div class="spotlight spot-c"></div>
 <div class="spotlight spot-d"></div>
 <h1>SOUNDS GOOD!</h1>
+<div id="bootLoading">
+  <div class="boot-card">
+    <div class="boot-title">LOADING<span class="boot-dots"></span></div>
+    <div class="boot-text">ゲーム状態を読み込んでいます</div>
+  </div>
+</div>
 
 <!-- 管理者オーバーレイ -->
 <div class="overlay" id="adminOv">
@@ -258,12 +270,21 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
       <button class="btn-sm" id="loginWatch" style="padding:10px 16px;">観戦モード</button>
     </div>
     <div style="margin-top:32px;border-top:1px solid #444;padding-top:16px;">
-      <div id="adminPwArea" style="display:none;margin-bottom:8px;">
-        <input type="password" id="adminPwInput" placeholder="管理者パスワード" style="width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:8px;text-align:center;margin-bottom:6px;">
-        <div id="adminPwErr" style="color:#ff4466;font-size:11px;margin-bottom:6px;display:none;">パスワードが違います</div>
-        <button class="btn-sm" id="adminPwOk" style="width:100%;padding:8px;">確認 ▶</button>
-      </div>
       <button class="btn-sm" id="adminBtnLogin" style="padding:6px 14px;color:#555;font-size:10px;border-color:#333;">⚙ 設定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 管理者ログインオーバーレイ -->
+<div class="overlay" id="adminLoginOv">
+  <div class="obox">
+    <div class="otitle">管理者パスワード</div>
+    <div class="obody">管理者パスワードを入力してください</div>
+    <input type="password" id="adminPwInput" placeholder="管理者パスワード" style="width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:13px;padding:10px;text-align:center;margin-bottom:10px;">
+    <div id="adminPwErr" style="color:#ff4466;font-size:11px;margin-bottom:10px;display:none;">パスワードが違います</div>
+    <div class="orow">
+      <button class="btn-main" id="adminPwOk">確認 ▶</button>
+      <button class="btn-sm" id="adminPwCancel" style="padding:10px 16px;">キャンセル</button>
     </div>
   </div>
 </div>
@@ -1541,7 +1562,13 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
 });
 
 // --- 起動時 ---
-document.getElementById('game').style.display='flex';
+function finishBootLoading(showGame){
+  const boot=document.getElementById('bootLoading');
+  const game=document.getElementById('game');
+  if(showGame) game.style.display='flex';
+  if(boot) boot.style.display='none';
+}
+
 (async()=>{
   // EC2から読み込み。_resetの場合は少し待ってリトライ（他ブラウザが保存中の可能性）
   let _saved = await loadFromServer();
@@ -1573,9 +1600,11 @@ document.getElementById('game').style.display='flex';
     endGameIfNeeded('', true);
     await checkAndAwardDaily();
     render();
+    finishBootLoading(true);
     requestAnimationFrame(initSearchlights);
   } else {
     // ゲーム未設定時は管理者設定を開く
+    finishBootLoading(false);
     document.getElementById('adminOv').classList.add('show');
   }
 })();
@@ -1780,23 +1809,27 @@ function openAdmin(){
   document.getElementById('loginOv').classList.remove('show');
   document.getElementById('adminOv').classList.add('show');
 }
-document.getElementById('adminBtn').addEventListener('click', openAdmin);
-document.getElementById('adminBtnLogin').addEventListener('click',()=>{
-  const area=document.getElementById('adminPwArea');
-  area.style.display=area.style.display==='none'?'block':'none';
+function showAdminPasswordPrompt(){
   document.getElementById('adminPwInput').value='';
   document.getElementById('adminPwErr').style.display='none';
-  if(area.style.display==='block') document.getElementById('adminPwInput').focus();
-});
+  document.getElementById('loginOv').classList.remove('show');
+  document.getElementById('adminLoginOv').classList.add('show');
+  document.getElementById('adminPwInput').focus();
+}
+document.getElementById('adminBtn').addEventListener('click', showAdminPasswordPrompt);
+document.getElementById('adminBtnLogin').addEventListener('click', showAdminPasswordPrompt);
 document.getElementById('adminPwOk').addEventListener('click',()=>{
   const val=document.getElementById('adminPwInput').value;
   if(val==='mvv'){
-    document.getElementById('adminPwArea').style.display='none';
+    document.getElementById('adminLoginOv').classList.remove('show');
     openAdmin();
   } else {
     document.getElementById('adminPwErr').style.display='block';
     document.getElementById('adminPwInput').value='';
   }
+});
+document.getElementById('adminPwCancel').addEventListener('click',()=>{
+  document.getElementById('adminLoginOv').classList.remove('show');
 });
 document.getElementById('adminPwInput').addEventListener('keydown',(e)=>{
   if(e.key==='Enter') document.getElementById('adminPwOk').click();
@@ -1827,8 +1860,8 @@ document.getElementById('adminClose').addEventListener('click',()=>{
   closeAdmin();
 });
 
-// オーバーレイ外クリックで閉じる（loginOv・adminOv）
-['loginOv','adminOv'].forEach(id=>{
+// オーバーレイ外クリックで閉じる
+['loginOv','adminOv','adminLoginOv'].forEach(id=>{
   document.getElementById(id).addEventListener('click',e=>{
     if(e.target.id!==id) return;
     if(id==='adminOv') closeAdmin();
