@@ -1796,12 +1796,12 @@ setInterval(async()=>{
   }
 },10000);
 
-// 5分ごとにサーバーへ軽く保存して、復元用バックアップの時点を作る
+// 1時間ごとにサーバーへ軽く保存して、復元用バックアップの時点を作る
 setInterval(()=>{
   if(!G.board||!G.board.length) return;
   G._backupHeartbeatAt=Date.now();
   save();
-},300000);
+},3600000);
 
 
 // --- 管理者モーダル ---
@@ -1826,7 +1826,7 @@ async function loadBackupOptions(){
     const backups=(json&&json.backups)||[];
     if(!backups.length){
       sel.innerHTML='<option value="">まだバックアップはありません</option>';
-      status.textContent='開始後、約5分ごとに自動保存されます';
+      status.textContent='開始後、約1時間ごとに自動保存されます';
       return;
     }
     sel.innerHTML='<option value="">復元する時点を選択</option>'+backups.map(b=>'<option value="'+b.id+'">'+formatBackupLabel(b)+'</option>').join('');

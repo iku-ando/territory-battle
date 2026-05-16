@@ -2,7 +2,7 @@
 const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e2fb9-da82-74a2-afd2-f3b7379d40c0';
 const BACKUP_BLOB_URL = process.env.GAME_STATE_BACKUP_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e302d-0420-7932-8a87-b41a0dfbf5b5';
 const PT_PER = 80;
-const BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_BACKUPS = 48;
 
 async function loadCurrentState() {
