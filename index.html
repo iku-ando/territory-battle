@@ -209,6 +209,14 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
       <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">GAME CONTROLS</p>
       <p style="font-size:11px;color:#666;margin-bottom:10px;">直前の平日の会話量を自動取得してPTを付与します</p>
       <div id="awardStatus" style="font-size:11px;color:#888;margin-bottom:8px;min-height:14px;"></div>
+      <div style="border-top:1px solid #333;margin:10px 0;padding-top:10px;">
+        <p style="font-size:11px;color:#aaa;margin-bottom:8px;">バックアップ復元</p>
+        <select id="backupSelect" style="width:100%;background:#2a2a2a;border:2px solid #555;color:#f0f0f0;font-size:11px;padding:7px;margin-bottom:8px;">
+          <option value="">バックアップを読み込み中...</option>
+        </select>
+        <button class="btn-sm" id="restoreBackupBtn" style="width:100%;color:#aaa;border-color:#444;font-size:10px;">↩ 選択した時点に戻す</button>
+        <div id="backupStatus" style="font-size:11px;color:#888;margin-top:8px;min-height:14px;"></div>
+      </div>
       <div class="admin-actions" style="flex-direction:column;gap:8px;">
         <button class="btn-sm" id="debugNextBtn" style="width:100%;color:#888;border-color:#444;font-size:10px;">🔧 翌日に進む（デバッグ）</button>
         <button class="btn-sm" id="resetBtn" style="width:100%;">↺ RESET</button>
@@ -1788,8 +1796,47 @@ setInterval(async()=>{
   }
 },10000);
 
+// 5分ごとにサーバーへ軽く保存して、復元用バックアップの時点を作る
+setInterval(()=>{
+  if(!G.board||!G.board.length) return;
+  G._backupHeartbeatAt=Date.now();
+  save();
+},300000);
+
 
 // --- 管理者モーダル ---
+function formatBackupLabel(backup){
+  const d=new Date(backup.savedAt);
+  const stamp=Number.isNaN(d.getTime())?backup.savedAt:d.toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const pts=Array.isArray(backup.teamPts)&&backup.teamPts.length?' / PT '+backup.teamPts.join('-'):'';
+  const gameDate=backup.gameDate?' / '+backup.gameDate:'';
+  const reason=backup.reason==='before-restore'?'復元前':'定期';
+  return stamp+' ['+reason+']'+gameDate+pts;
+}
+
+async function loadBackupOptions(){
+  const sel=document.getElementById('backupSelect');
+  const status=document.getElementById('backupStatus');
+  if(!sel||!status) return;
+  sel.innerHTML='<option value="">読み込み中...</option>';
+  status.textContent='';
+  try{
+    const res=await fetch(API_URL+'?backups=1&t='+Date.now());
+    const json=await res.json();
+    const backups=(json&&json.backups)||[];
+    if(!backups.length){
+      sel.innerHTML='<option value="">まだバックアップはありません</option>';
+      status.textContent='開始後、約5分ごとに自動保存されます';
+      return;
+    }
+    sel.innerHTML='<option value="">復元する時点を選択</option>'+backups.map(b=>'<option value="'+b.id+'">'+formatBackupLabel(b)+'</option>').join('');
+    status.textContent='最新 '+backups.length+' 件を保持中';
+  }catch(e){
+    sel.innerHTML='<option value="">読み込みに失敗しました</option>';
+    status.textContent='バックアップ一覧を取得できませんでした';
+  }
+}
+
 function openAdmin(){
   if(G.passwords){G.passwords.forEach((pw,i)=>{const el=document.getElementById('pw'+i);if(el)el.value=pw;});}
   const endEl=document.getElementById('gameEndDate');
@@ -1805,6 +1852,7 @@ function openAdmin(){
       ? 'ゲーム終了済み: PT付与停止中'
       : '前回付与: '+lastAward+'　／　取得対象: '+prevBusinessDay(curDate)+'の会話データ';
   }
+  if(gameRunning) loadBackupOptions();
   updateDebugDateInfo();
   document.getElementById('loginOv').classList.remove('show');
   document.getElementById('adminOv').classList.add('show');
@@ -1858,6 +1906,38 @@ function closeAdmin(){
 }
 document.getElementById('adminClose').addEventListener('click',()=>{
   closeAdmin();
+});
+document.getElementById('restoreBackupBtn').addEventListener('click',async()=>{
+  const sel=document.getElementById('backupSelect');
+  const status=document.getElementById('backupStatus');
+  const backupId=sel&&sel.value;
+  if(!backupId){
+    if(status) status.textContent='復元する時点を選択してください';
+    return;
+  }
+  if(!confirm('選択した時点に戻しますか？ 現在の状態も復元前バックアップとして保存されます。')) return;
+  if(status) status.textContent='復元中...';
+  try{
+    const res=await fetch(API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({_restoreBackup:backupId})
+    });
+    const json=await res.json();
+    if(!res.ok||!json.success) throw new Error((json&&json.error)||'restore failed');
+    G=json.data;
+    G.bonus=G.bonus||{};
+    sanitizeLoadedGame();
+    localStorage.setItem('tb3',JSON.stringify(G));
+    myTeam=-1;
+    myActiveSince=0;
+    localStorage.setItem('tb3_myTeam','-1');
+    render();
+    if(status) status.textContent='復元しました';
+    await loadBackupOptions();
+  }catch(e){
+    if(status) status.textContent='復元に失敗しました: '+(e&&e.message?e.message:'');
+  }
 });
 
 // オーバーレイ外クリックで閉じる

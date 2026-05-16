@@ -1,6 +1,9 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
 const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e2fb9-da82-74a2-afd2-f3b7379d40c0';
+const BACKUP_BLOB_URL = process.env.GAME_STATE_BACKUP_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e302d-0420-7932-8a87-b41a0dfbf5b5';
 const PT_PER = 80;
+const BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_BACKUPS = 48;
 
 async function loadCurrentState() {
   const r = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
@@ -62,6 +65,86 @@ function repairZeroAwardState(data) {
     data._repairedZeroPtsAt = new Date().toISOString();
   }
   return repaired;
+}
+
+function stripBackups(data) {
+  if (!data || typeof data !== 'object') return data;
+  const copy = JSON.parse(JSON.stringify(data));
+  delete copy._backups;
+  return copy;
+}
+
+function validBackups(backups) {
+  return Array.isArray(backups)
+    ? backups.filter((b) => b && b.id && b.savedAt && b.state && b.state.board && b.state.teams)
+    : [];
+}
+
+async function loadBackupEntries(current) {
+  const fallback = validBackups(current && current._backups);
+  try {
+    const r = await fetch(BACKUP_BLOB_URL, { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) return fallback;
+    const json = await r.json();
+    const stored = validBackups(Array.isArray(json) ? json : json.backups);
+    if (!stored.length) return fallback;
+    const seen = new Set();
+    return [...stored, ...fallback].filter((b) => {
+      if (seen.has(b.id)) return false;
+      seen.add(b.id);
+      return true;
+    }).slice(0, MAX_BACKUPS);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+async function saveBackupEntries(backups) {
+  const clean = validBackups(backups).slice(0, MAX_BACKUPS);
+  await fetch(BACKUP_BLOB_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ backups: clean, updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+}
+
+function createBackupEntry(state, savedAt, reason) {
+  if (!state || state._reset || !state.board || !state.teams) return null;
+  const clean = stripBackups(state);
+  return {
+    id: savedAt,
+    savedAt,
+    reason,
+    gameDate: clean.gameDate || clean.debugDate || clean.lastDate || '',
+    teamPts: clean.teams.map((t) => Number(t && t.pts || 0)),
+    state: clean,
+  };
+}
+
+function attachPeriodicBackup(data, current, nowIso, backups) {
+  backups = validBackups(backups);
+  if (!current || current._reset || !current.board || !current.teams) {
+    data._backups = backups.slice(0, MAX_BACKUPS);
+    return;
+  }
+
+  const lastBackupAt = backups.length ? Date.parse(backups[0].savedAt) : 0;
+  const shouldBackup = !lastBackupAt || Date.parse(nowIso) - lastBackupAt >= BACKUP_INTERVAL_MS;
+  const entry = shouldBackup
+    ? createBackupEntry(current, nowIso, 'periodic')
+    : null;
+
+  data._backups = (entry ? [entry, ...backups] : backups).slice(0, MAX_BACKUPS);
+}
+
+function backupList(data) {
+  return validBackups(data && data._backups).map((b) => ({
+    id: b.id,
+    savedAt: b.savedAt,
+    reason: b.reason || 'periodic',
+    gameDate: b.gameDate || '',
+    teamPts: Array.isArray(b.teamPts) ? b.teamPts : [],
+  }));
 }
 
 function isInvalidDateWrite(data, current) {
@@ -140,6 +223,27 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const data = req.body;
       const current = await loadCurrentState().catch(() => null);
+      const backups = await loadBackupEntries(current);
+      if (data && data._restoreBackup) {
+        const target = backups.find((b) => b.id === data._restoreBackup);
+        if (!target) {
+          return res.status(404).json({ success: false, error: 'backup not found' });
+        }
+        const nowIso = new Date().toISOString();
+        const beforeRestore = createBackupEntry(current, nowIso, 'before-restore');
+        const restored = stripBackups(target.state);
+        restored._backups = (beforeRestore ? [beforeRestore, ...backups] : backups).slice(0, MAX_BACKUPS);
+        restored._restoredFromBackup = target.id;
+        restored.updated_at = nowIso;
+        const r = await fetch(BLOB_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(restored),
+        });
+        if (!r.ok) throw new Error('blob restore failed: ' + r.status);
+        await saveBackupEntries(restored._backups);
+        return res.status(200).json({ success: true, data: restored, backups: backupList(restored) });
+      }
       if (isInvalidDateWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'stale or invalid game-date write rejected' });
       }
@@ -150,20 +254,28 @@ export default async function handler(req, res) {
       if (isUnexpectedPointIncreaseWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'same-day point increase write rejected' });
       }
-      data.updated_at = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      attachPeriodicBackup(data, current, nowIso, backups);
+      data.updated_at = nowIso;
       const r = await fetch(BLOB_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!r.ok) throw new Error('blob write failed: ' + r.status);
-      return res.status(200).json({ success: true });
+      await saveBackupEntries(data._backups);
+      return res.status(200).json({ success: true, backups: backupList(data) });
     } else {
       const r = await fetch(BLOB_URL, {
         headers: { 'Accept': 'application/json' },
       });
-      if (!r.ok) return res.status(200).json({ success: false, error: 'No saved state' });
-      const data = await r.json();
+      const data = r.ok ? await r.json() : null;
+      const backups = await loadBackupEntries(data);
+      if (req.query && req.query.backups === '1') {
+        return res.status(200).json({ success: true, backups: backupList({ _backups: backups }) });
+      }
+      if (!data) return res.status(200).json({ success: false, error: 'No saved state' });
+      data._backups = backups;
       const repaired = repairZeroAwardState(data);
       if (repaired) {
         data.updated_at = new Date().toISOString();
