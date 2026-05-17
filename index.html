@@ -135,6 +135,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 .band-img:hover{filter:brightness(1.12);}
 .music-note{position:absolute;color:#ffcc22;font-family:'Press Start 2P',monospace;font-size:18px;z-index:4;opacity:0;pointer-events:none;text-shadow:0 2px 0 #000,0 0 8px rgba(255,204,34,.75);animation:music-float .72s ease-out forwards;}
 @keyframes music-float{0%{opacity:0;transform:translate(-50%,-20%) scale(.65) rotate(-8deg);}18%{opacity:1;}100%{opacity:0;transform:translate(calc(-50% + var(--mx, 0px)),-72px) scale(1.15) rotate(10deg);}}
+.fan-cheer{position:fixed;z-index:9998;pointer-events:none;max-width:190px;padding:8px 10px;border:2px solid currentColor;background:rgba(8,6,18,.94);color:#fff;font-size:12px;line-height:1.45;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.55),0 0 18px currentColor;text-shadow:0 1px 0 #000;animation:fan-cheer-pop 2.8s ease-out forwards;}
+.fan-cheer::after{content:'';position:absolute;left:18px;bottom:-8px;border-width:8px 7px 0 7px;border-style:solid;border-color:currentColor transparent transparent transparent;filter:drop-shadow(0 2px 0 rgba(0,0,0,.6));}
+@keyframes fan-cheer-pop{0%{opacity:0;transform:translate(-50%,8px) scale(.75);}12%{opacity:1;transform:translate(-50%,0) scale(1);}78%{opacity:1;transform:translate(-50%,-8px) scale(1);}100%{opacity:0;transform:translate(-50%,-24px) scale(.92);}}
 .band-img.tl{top:0;left:-280px;}
 .band-img.tr{top:0;right:-280px;}
 .band-img.bl{bottom:0;left:-280px;}
@@ -335,6 +338,22 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 const COLS=12,ROWS=12;
 const TNAME=['The Breakpoints','Command Z.','404 Not Found','〆切前夜'];
 const TCOL=['#ff4466','#44aaff','#44ff88','#ffcc22'];
+const TEAM_MEMBERS=[
+  ['海','たま','つぼ','吉岡','ヨーコ','オーモト','貢','ジョン'],
+  ['YASU','道','Fujiyoshi','Tetsu','まる','堅太郎','にしはら'],
+  ['あや','yon','こま','ダダ','さやか','ひろうち','TAKUMA'],
+  ['Andy','みやがわ','ケンティ','航','motz','さこちん','Serika'],
+];
+const CHEER_TEMPLATES=[
+  '{name}かっこいい！',
+  '{name}こっち向いて！',
+  '{name}最高！',
+  '{name}の音、刺さる！',
+  '{name}優勝！',
+  '{name}、もっと聴かせて！',
+  '{name}今日も神！',
+  '{name}についていく！',
+];
 const PT_PER=80; // 80分で1pt
 const ACTIVE_TIMEOUT_MS=60000;
 const API_ORIGIN=location.protocol==='file:'?'https://territory-battle-seven.vercel.app':'';
@@ -1043,6 +1062,31 @@ function showCaptureEffect(r, c, teamIdx, isBonus){
   }
 }
 
+function showFanCheer(r, c, teamIdx, delay=0){
+  const boardEl=document.getElementById('board');
+  const cellEl=boardEl.querySelectorAll('.cell')[r*COLS+c];
+  if(!cellEl) return;
+  const members=TEAM_MEMBERS[teamIdx]||[];
+  const name=members[Math.floor(Math.random()*members.length)]||TNAME[teamIdx];
+  const template=CHEER_TEMPLATES[Math.floor(Math.random()*CHEER_TEMPLATES.length)];
+  const rect=cellEl.getBoundingClientRect();
+  const bubble=document.createElement('div');
+  bubble.className='fan-cheer';
+  bubble.style.color=TCOL[teamIdx];
+  bubble.style.left=(rect.left+rect.width/2+(Math.random()*30-15))+'px';
+  bubble.style.top=(rect.top-12-(Math.random()*20))+'px';
+  bubble.style.animationDelay=delay+'ms';
+  bubble.textContent=template.replace('{name}', name);
+  document.body.appendChild(bubble);
+  setTimeout(()=>bubble.remove(), 3100+delay);
+}
+
+function showFanCheers(captured, teamIdx){
+  const picks=captured.filter(()=>Math.random()<0.58).slice(0,3);
+  const targets=picks.length?picks:[captured[Math.floor(Math.random()*captured.length)]].filter(Boolean);
+  targets.forEach((p,i)=>showFanCheer(p.r,p.c,teamIdx,i*260));
+}
+
 let _syncTimer=null;
 function showSyncSpinner(){
   const el=document.getElementById('syncSpinner');
@@ -1507,6 +1551,7 @@ document.getElementById('multiOk').addEventListener('click',()=>{
       const hasBonus=captured.some(p=>p.isBonus);
       showBannerEffect(myTeam, hasBonus, captured.length, net);
       captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
+      showFanCheers(captured, myTeam);
     }
   );
 });
