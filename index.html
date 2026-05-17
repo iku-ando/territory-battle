@@ -456,7 +456,6 @@ let myActiveSince=0; // この端末が操作権を取った時刻
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
-let _autoSaveBackoffUntil=0; // 自動再保存の失敗ループ抑止
 
 function initG(members, startDate, gameEnd, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -611,7 +610,7 @@ function fillCorners(){
 
 const API_URL=API_ORIGIN+'/api/game-state';
 
-function save(options={}){
+function save(){
   // ローカルタイムスタンプを付与（同期判定用）
   G._savedAt = Date.now();
   const payload=JSON.stringify(G);
@@ -637,8 +636,7 @@ function save(options={}){
       }
     })
   ).catch(e=>{
-    if(options.auto) _autoSaveBackoffUntil=Date.now()+60000;
-    if(!options.silent) setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
+    setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
     return {success:false,error:e.message};
   });
   return _saveChain;
@@ -1235,7 +1233,10 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   if(passwords.some(p=>p==='')){
     alert('全チームのパスワードを設定してください');return;
   }
-  localStorage.removeItem('tb3');
+  const existing=G&&G.board&&G.board.length?G:load();
+  if(existing&&existing.board&&existing.teams&&!confirm('すでにゲームデータがあります。新しく開始して上書きしますか？')){
+    return;
+  }
   initG(members, startDate, gameEnd, passwords);
   const startBtn=document.getElementById('startBtn');
   startBtn.disabled=true; startBtn.textContent='データ取得中…';
@@ -1580,9 +1581,14 @@ function finishBootLoading(showGame){
     _saved = await loadFromServer();
   }
   if(!_saved){
-    // それでもなければ初期状態
-    localStorage.removeItem('tb3');
-    localStorage.removeItem('tb3_myTeam');
+    const localSaved=load();
+    if(localSaved&&localSaved.board&&localSaved.teams){
+      _saved=localSaved;
+      setMsg('ローカル保存から復帰しました');
+    }
+  }
+  if(!_saved){
+    // それでもなければ初期状態（リセットボタン以外では保存済みデータを削除しない）
   }
   if(_saved&&_saved.board&&_saved.teams){
     // 常に閲覧モードで開始（ポップアップなし）
@@ -1592,6 +1598,7 @@ function finishBootLoading(showGame){
     G.bonus=G.bonus||{};
     G.passwords=G.passwords||['','','',''];
     sanitizeLoadedGame();
+    localStorage.setItem('tb3',JSON.stringify(G));
     if(HAS_MOCK_CLOCK){
       G.debugMode=false;
       G.lastRealDate=today();
@@ -1691,8 +1698,7 @@ setInterval(async()=>{
   const latestSavedAt=latest._savedAt||Date.parse(latest.updated_at||'')||0;
   const curSavedAt=G._savedAt||0;
   if(curSavedAt&&latestSavedAt&&latestSavedAt<curSavedAt){
-    if(Date.now()<_autoSaveBackoffUntil) return;
-    save({auto:true,silent:true});
+    // ローカル控えは復旧用に残すだけ。自動同期では本番を上書きしない。
     return;
   }
   // ボード状態を文字列化して変化チェック（updated_at比較より確実）
