@@ -456,6 +456,7 @@ let myActiveSince=0; // この端末が操作権を取った時刻
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
+let _autoSaveBackoffUntil=0; // 自動再保存の失敗ループ抑止
 
 function initG(members, startDate, gameEnd, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -610,7 +611,7 @@ function fillCorners(){
 
 const API_URL=API_ORIGIN+'/api/game-state';
 
-function save(){
+function save(options={}){
   // ローカルタイムスタンプを付与（同期判定用）
   G._savedAt = Date.now();
   const payload=JSON.stringify(G);
@@ -636,7 +637,8 @@ function save(){
       }
     })
   ).catch(e=>{
-    setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
+    if(options.auto) _autoSaveBackoffUntil=Date.now()+60000;
+    if(!options.silent) setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
     return {success:false,error:e.message};
   });
   return _saveChain;
@@ -1689,7 +1691,8 @@ setInterval(async()=>{
   const latestSavedAt=latest._savedAt||Date.parse(latest.updated_at||'')||0;
   const curSavedAt=G._savedAt||0;
   if(curSavedAt&&latestSavedAt&&latestSavedAt<curSavedAt){
-    save();
+    if(Date.now()<_autoSaveBackoffUntil) return;
+    save({auto:true,silent:true});
     return;
   }
   // ボード状態を文字列化して変化チェック（updated_at比較より確実）
