@@ -1551,7 +1551,7 @@ document.getElementById('multiOk').addEventListener('click',()=>{
       const hasBonus=captured.some(p=>p.isBonus);
       showBannerEffect(myTeam, hasBonus, captured.length, net);
       captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
-      showFanCheers(captured, myTeam);
+      setTimeout(()=>showFanCheers(captured, myTeam), 2100);
     }
   );
 });
