@@ -614,7 +614,7 @@ function save(){
   // ローカルタイムスタンプを付与（同期判定用）
   G._savedAt = Date.now();
   const payload=JSON.stringify(G);
-  // localStorageにバックアップ
+  // localStorageにも控える
   try{
     localStorage.setItem('tb3',payload);
     localStorage.setItem('tb3_myTeam', myTeam);

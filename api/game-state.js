@@ -1,16 +1,16 @@
 // jsonblob.com を永続ストレージとして使用（無料・設定不要）
-const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e2fb9-da82-74a2-afd2-f3b7379d40c0';
+const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e3834-075c-702e-8030-1ed41a3b87b8';
 const PT_PER = 80;
 
 async function loadCurrentState() {
   const r = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
   if (!r.ok) return null;
   const data = await r.json();
-  removeBackupMetadata(data);
+  removeLegacySnapshotMetadata(data);
   return data;
 }
 
-function removeBackupMetadata(data) {
+function removeLegacySnapshotMetadata(data) {
   if (!data || typeof data !== 'object') return data;
   delete data._backups;
   delete data._backupHeartbeatAt;
@@ -20,7 +20,7 @@ function removeBackupMetadata(data) {
 
 function normalizeGameState(data, current) {
   if (!data || data._reset) return data;
-  removeBackupMetadata(data);
+  removeLegacySnapshotMetadata(data);
   if (!data.board || !data.teams) return data;
 
   const gameDate =
@@ -175,7 +175,7 @@ export default async function handler(req, res) {
       });
       if (!r.ok) return res.status(200).json({ success: false, error: 'No saved state' });
       const data = await r.json();
-      removeBackupMetadata(data);
+      removeLegacySnapshotMetadata(data);
       const repaired = repairZeroAwardState(data);
       if (repaired) {
         data.updated_at = new Date().toISOString();
