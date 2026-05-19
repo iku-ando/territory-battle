@@ -217,6 +217,12 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
         <button class="btn-sm" id="resetBtn" style="width:100%;">↺ RESET</button>
       </div>
     </div>
+    <div class="admin-section" id="backupActions" style="display:none;">
+      <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;">BACKUPS</p>
+      <p style="font-size:11px;color:#666;margin-bottom:10px;">1時間ごとにサーバー側へ自動保存されます</p>
+      <button class="btn-sm" id="backupRefreshBtn" style="width:100%;margin-bottom:8px;">↻ バックアップ一覧を更新</button>
+      <div id="backupList" style="font-size:11px;color:#aaa;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;"></div>
+    </div>
     <div class="admin-section">
       <button class="btn-sm" id="adminClose" style="width:100%;padding:10px;">✕ 閉じる</button>
     </div>
@@ -687,6 +693,24 @@ async function loadFromServer(){
     if(json.data&&json.data.board) return json.data;
   }catch(e){}
   return null;
+}
+
+async function loadBackups(){
+  const res=await fetch(API_URL+'?backups=1&t='+Date.now());
+  const json=await res.json();
+  if(!res.ok||!json.success) throw new Error((json&&json.error)||'backup load failed');
+  return json.backups||[];
+}
+
+async function restoreBackup(key){
+  const res=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({_restoreBackup:key})
+  });
+  const json=await res.json().catch(()=>({success:false,error:'invalid response'}));
+  if(!res.ok||!json.success) throw new Error((json&&json.error)||'backup restore failed');
+  return json.data;
 }
 
 function isAdjacent(r,c){
@@ -1902,12 +1926,78 @@ setInterval(async()=>{
 },10000);
 
 // --- 管理者モーダル ---
+function formatBackupTime(value){
+  if(!value) return '';
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return value;
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'/'+pad(d.getMonth()+1)+'/'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+function renderBackupList(backups){
+  const box=document.getElementById('backupList');
+  if(!box) return;
+  box.innerHTML='';
+  if(!backups.length){
+    box.textContent='まだバックアップはありません';
+    return;
+  }
+  backups.forEach((backup)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #333;padding:7px;background:#1d1d1d;';
+    const info=document.createElement('div');
+    info.style.cssText='line-height:1.5;min-width:0;';
+    const date=backup.gameDate?(' / 日付 '+backup.gameDate):'';
+    info.textContent=formatBackupTime(backup.created_at)+' / '+(backup.reason||'auto')+date+' / '+(backup.cells||0)+'マス';
+    const btn=document.createElement('button');
+    btn.className='btn-sm';
+    btn.type='button';
+    btn.textContent='復元';
+    btn.style.cssText='padding:6px 10px;font-size:10px;flex:0 0 auto;';
+    btn.addEventListener('click',async()=>{
+      if(!confirm('このバックアップの状態に戻しますか？現在の状態は上書きされます。')) return;
+      btn.disabled=true; btn.textContent='復元中…';
+      try{
+        const restored=await restoreBackup(backup.key);
+        G=restored;
+        G.bonus=G.bonus||{};
+        G.passwords=G.passwords||['','','',''];
+        sanitizeLoadedGame();
+        myTeam=-1;
+        localStorage.setItem('tb3',JSON.stringify(G));
+        localStorage.setItem('tb3_myTeam','-1');
+        document.getElementById('adminOv').classList.remove('show');
+        showGame();
+        render();
+        setMsg('✅ バックアップから復元しました');
+      }catch(e){
+        alert('復元に失敗しました: '+(e&&e.message?e.message:''));
+        btn.disabled=false; btn.textContent='復元';
+      }
+    });
+    row.appendChild(info);
+    row.appendChild(btn);
+    box.appendChild(row);
+  });
+}
+
+async function refreshBackupList(){
+  const box=document.getElementById('backupList');
+  if(box) box.textContent='読み込み中…';
+  try{
+    renderBackupList(await loadBackups());
+  }catch(e){
+    if(box) box.textContent='バックアップ一覧を取得できませんでした';
+  }
+}
+
 function openAdmin(){
   if(G.passwords){G.passwords.forEach((pw,i)=>{const el=document.getElementById('pw'+i);if(el)el.value=pw;});}
   const endEl=document.getElementById('gameEndDate');
   if(endEl) endEl.value=G.gameEnd||'';
   const gameRunning=G.board&&G.board.length>0;
   document.getElementById('adminActions').style.display=gameRunning?'block':'none';
+  document.getElementById('backupActions').style.display=gameRunning?'block':'none';
   // 前回付与日と仮想日付を表示
   const statusEl=document.getElementById('awardStatus');
   if(statusEl){
@@ -1918,6 +2008,7 @@ function openAdmin(){
       : '前回付与: '+lastAward+'　／　取得対象: '+prevBusinessDay(curDate)+'の会話データ';
   }
   updateDebugDateInfo();
+  if(gameRunning) refreshBackupList();
   document.getElementById('loginOv').classList.remove('show');
   document.getElementById('adminOv').classList.add('show');
 }
@@ -1930,6 +2021,7 @@ function showAdminPasswordPrompt(){
 }
 document.getElementById('adminBtn').addEventListener('click', showAdminPasswordPrompt);
 document.getElementById('adminBtnLogin').addEventListener('click', showAdminPasswordPrompt);
+document.getElementById('backupRefreshBtn').addEventListener('click', refreshBackupList);
 document.getElementById('adminPwOk').addEventListener('click',()=>{
   const val=document.getElementById('adminPwInput').value;
   if(val==='mvv'){

@@ -8,6 +8,10 @@ const LEGACY_BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com
 const REQUIRE_DURABLE_STORE =
   process.env.REQUIRE_DURABLE_GAME_STATE === '1' ||
   (process.env.VERCEL === '1' && process.env.ALLOW_LEGACY_GAME_STATE !== '1');
+const BACKUP_LIST_KEY = `${STORAGE_KEY}:backups`;
+const BACKUP_KEY_PREFIX = `${STORAGE_KEY}:backup:`;
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
+const MAX_BACKUPS = 72;
 const PT_PER = 80;
 
 function hasDurableStore() {
@@ -79,6 +83,74 @@ async function saveCurrentState(data) {
   }
   await saveToLegacyBlob(data);
   return 'legacy-jsonblob';
+}
+
+function isBackupableState(data) {
+  return !!(data && !data._reset && data.board && data.teams);
+}
+
+async function loadBackupList() {
+  if (!hasDurableStore()) return [];
+  const rows = await kvCommand(['LRANGE', BACKUP_LIST_KEY, 0, MAX_BACKUPS - 1]);
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => {
+    try {
+      return typeof row === 'string' ? JSON.parse(row) : row;
+    } catch (e) {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+async function saveBackupSnapshot(data, reason = 'auto') {
+  if (!hasDurableStore() || !isBackupableState(data)) return null;
+  const now = new Date();
+  const key = BACKUP_KEY_PREFIX + now.toISOString();
+  const snapshot = JSON.parse(JSON.stringify(data));
+  snapshot._backupCreatedAt = now.toISOString();
+  snapshot._backupReason = reason;
+  await kvCommand(['SET', key, JSON.stringify(snapshot)]);
+  const cells = Array.isArray(data.board)
+    ? data.board.reduce((sum, row) => sum + row.filter((cell) => cell >= 0).length, 0)
+    : 0;
+  const meta = {
+    key,
+    created_at: now.toISOString(),
+    reason,
+    gameDate: data.gameDate || data.debugDate || data.lastDate || '',
+    lastAwardDate: data.lastAwardDate || '',
+    cells,
+  };
+  await kvCommand(['LPUSH', BACKUP_LIST_KEY, JSON.stringify(meta)]);
+  await kvCommand(['LTRIM', BACKUP_LIST_KEY, 0, MAX_BACKUPS - 1]);
+  return meta;
+}
+
+async function createHourlyBackupIfNeeded(current, incoming) {
+  if (!hasDurableStore()) return null;
+  const target = isBackupableState(current) ? current : incoming;
+  if (!isBackupableState(target)) return null;
+  const backups = await loadBackupList().catch(() => []);
+  const latest = backups[0];
+  const latestAt = latest && Date.parse(latest.created_at || '');
+  if (latestAt && Date.now() - latestAt < BACKUP_INTERVAL_MS) return null;
+  return saveBackupSnapshot(target, backups.length ? 'hourly' : 'initial');
+}
+
+async function restoreBackup(key, current) {
+  if (!hasDurableStore()) throw new Error('durable game state storage is not configured');
+  if (!key || typeof key !== 'string' || !key.startsWith(BACKUP_KEY_PREFIX)) {
+    throw new Error('invalid backup key');
+  }
+  const raw = await kvCommand(['GET', key]);
+  if (!raw) throw new Error('backup not found');
+  const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  removeLegacySnapshotMetadata(data);
+  data._restoredFromBackup = key;
+  data.updated_at = new Date().toISOString();
+  await saveBackupSnapshot(current, 'before-restore').catch(() => {});
+  await saveToDurableStore(data);
+  return data;
 }
 
 function removeLegacySnapshotMetadata(data) {
@@ -222,6 +294,10 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const data = req.body;
       const current = await loadCurrentState().catch(() => null);
+      if (data && data._restoreBackup) {
+        const restored = await restoreBackup(data._restoreBackup, current);
+        return res.status(200).json({ success: true, data: restored, storage: 'kv' });
+      }
       if (isInvalidDateWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'stale or invalid game-date write rejected' });
       }
@@ -233,9 +309,14 @@ export default async function handler(req, res) {
         return res.status(409).json({ success: false, error: 'same-day point increase write rejected' });
       }
       data.updated_at = new Date().toISOString();
+      await createHourlyBackupIfNeeded(current, data).catch(() => {});
       const storage = await saveCurrentState(data);
       return res.status(200).json({ success: true, storage });
     } else {
+      if (req.query && req.query.backups === '1') {
+        const backups = await loadBackupList();
+        return res.status(200).json({ success: true, backups, storage: hasDurableStore() ? 'kv' : 'legacy-jsonblob' });
+      }
       const data = await loadCurrentState();
       if (!data) return res.status(200).json({ success: false, error: 'No saved state' });
       const repaired = repairZeroAwardState(data);
