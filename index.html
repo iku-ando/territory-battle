@@ -1323,12 +1323,16 @@ function showGame(){
 }
 
 function canOperate(){
-  return myTeam>=0&&!isGameEnded()&&!isWeekendMode(); // 終了後・土日は閲覧のみ
+  return myTeam>=0&&G.teams&&G.teams[myTeam]&&(G.teams[myTeam].pts||0)>0&&!isGameEnded()&&!isWeekendMode(); // 終了後・土日・0PTは閲覧のみ
 }
 
 function showNotMyTurn(){
   if(isGameEnded()){setMsg('ゲーム終了日を過ぎたため、閲覧モードです');return;}
   if(isWeekendMode()){setMsg('土日は閲覧モードです');return;}
+  if(myTeam>=0&&G.teams&&G.teams[myTeam]&&(G.teams[myTeam].pts||0)<=0){
+    setMsg('本日のポイントはありませんでした');
+    return;
+  }
   setMsg('⛔ 自分のチームのターンではありません');
 }
 
@@ -1418,7 +1422,7 @@ function updateDebugDateInfo(){
 
 function isTeamDone(game, idx){
   const team=game&&game.teams&&game.teams[idx];
-  return !!(team&&team.pts<=0&&(team.awardedToday||0)>0);
+  return !!(team&&(team.pts||0)<=0);
 }
 
 function switchToSpectator(message, latest){
@@ -1498,7 +1502,8 @@ async function claimTeam(idx){
   }
 
   if(isTeamDone(G, idx)){
-    return {ok:false, reason:'done'};
+    const team=G.teams&&G.teams[idx];
+    return {ok:false, reason:(team&&(team.awardedToday||0)>0)?'done':'no_points'};
   }
 
   myActiveSince=Date.now();
@@ -1562,6 +1567,10 @@ document.getElementById('loginOk').addEventListener('click', async ()=>{
       switchToSpectator('👁 '+TNAME[claim.active]+' がプレイ中 — 観戦モードで閲覧中');
     }else if(claim.reason==='done'){
       switchToSpectator('📋 '+TNAME[idx]+' は本日の行動が終了しています — 観戦モードで閲覧中');
+    }else if(claim.reason==='no_points'){
+      const team=G.teams&&G.teams[idx];
+      switchToSpectator('📭 '+TNAME[idx]+' の本日のポイントはありませんでした — 観戦モードで閲覧中');
+      setTimeout(()=>showAwardPopup(idx, 0, team?(team.talkCarry||team.carry||0):0), 250);
     }else if(claim.reason==='ended'){
       switchToSpectator('ゲーム終了日を過ぎたため、閲覧モードです');
     }else if(claim.reason==='weekend'){
@@ -1875,7 +1884,7 @@ setInterval(async()=>{
   // アクティブチームがPT=0なら実質終了 → activeTeamをクリア
   if(latest.activeTeam>=0){
     const at=latest.teams&&latest.teams[latest.activeTeam];
-    if(at&&at.pts<=0&&(at.awardedToday||0)>0){
+    if(at&&(at.pts||0)<=0){
       latest.activeTeam=-1;
       latest.activeSince=0;
       // サーバーにも反映（自分がアクティブだった場合のみ書き込み）
