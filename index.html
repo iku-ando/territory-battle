@@ -1663,6 +1663,20 @@ function finishBootLoading(showGame){
   if(boot) boot.style.display='none';
 }
 
+function showSpectatorLoadFallback(){
+  myTeam=-1;
+  G={board:null,teams:[],activeTeam:-1,activeSince:0};
+  document.getElementById('stats').innerHTML=
+    '<div class="sc" style="grid-column:1/-1;text-align:center;">'
+    +'<div class="sc-name">観戦モード</div>'
+    +'<div style="font-size:13px;line-height:1.8;color:#aaa;">ゲーム状態を読み込めませんでした。少し待って更新してください。</div>'
+    +'</div>';
+  document.getElementById('turnbox').innerHTML='👁 観戦中';
+  document.getElementById('board').innerHTML='';
+  document.getElementById('adminOv').classList.remove('show');
+  finishBootLoading(true);
+}
+
 (async()=>{
   // EC2から読み込み。_resetの場合は少し待ってリトライ（他ブラウザが保存中の可能性）
   let _saved = await loadFromServer();
@@ -1703,9 +1717,8 @@ function finishBootLoading(showGame){
     finishBootLoading(true);
     requestAnimationFrame(initSearchlights);
   } else {
-    // ゲーム未設定時は管理者設定を開く
-    finishBootLoading(false);
-    document.getElementById('adminOv').classList.add('show');
+    // プライベートモードなどローカル控えがない場合も、勝手に管理者開始画面へ落とさない
+    showSpectatorLoadFallback();
   }
 })();
 
