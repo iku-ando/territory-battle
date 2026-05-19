@@ -1,13 +1,84 @@
-// jsonblob.com を永続ストレージとして使用（無料・設定不要）
-const BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e3d9a-f01b-71a5-9719-1d90e4778bde';
+// Durable storage:
+// 1. Vercel KV / Upstash Redis REST (recommended for production)
+// 2. JSONBlob fallback (temporary only; blobs have disappeared during operation)
+const STORAGE_KEY = process.env.GAME_STATE_KEY || 'territory-battle:game-state';
+const KV_REST_API_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
+const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const LEGACY_BLOB_URL = process.env.GAME_STATE_BLOB_URL || 'https://jsonblob.com/api/jsonBlob/019e3d9a-f01b-71a5-9719-1d90e4778bde';
+const REQUIRE_DURABLE_STORE =
+  process.env.REQUIRE_DURABLE_GAME_STATE === '1' ||
+  (process.env.VERCEL === '1' && process.env.ALLOW_LEGACY_GAME_STATE !== '1');
 const PT_PER = 80;
 
-async function loadCurrentState() {
-  const r = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
+function hasDurableStore() {
+  return !!(KV_REST_API_URL && KV_REST_API_TOKEN);
+}
+
+async function kvCommand(command) {
+  const r = await fetch(KV_REST_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${KV_REST_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(command),
+  });
+  if (!r.ok) throw new Error('kv command failed: ' + r.status);
+  const json = await r.json();
+  if (json && json.error) throw new Error('kv command failed: ' + json.error);
+  return json ? json.result : null;
+}
+
+async function loadFromDurableStore() {
+  if (!hasDurableStore()) return null;
+  const raw = await kvCommand(['GET', STORAGE_KEY]);
+  if (!raw) return null;
+  const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  removeLegacySnapshotMetadata(data);
+  return data;
+}
+
+async function saveToDurableStore(data) {
+  if (!hasDurableStore()) return false;
+  await kvCommand(['SET', STORAGE_KEY, JSON.stringify(data)]);
+  return true;
+}
+
+async function loadFromLegacyBlob() {
+  const r = await fetch(LEGACY_BLOB_URL, { headers: { 'Accept': 'application/json' } });
   if (!r.ok) return null;
   const data = await r.json();
   removeLegacySnapshotMetadata(data);
   return data;
+}
+
+async function saveToLegacyBlob(data) {
+  const r = await fetch(LEGACY_BLOB_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) throw new Error('legacy blob write failed: ' + r.status);
+}
+
+async function loadCurrentState() {
+  const durable = await loadFromDurableStore();
+  if (durable) return durable;
+
+  const legacy = await loadFromLegacyBlob().catch(() => null);
+  if (legacy && hasDurableStore()) {
+    await saveToDurableStore(legacy).catch(() => {});
+  }
+  return legacy;
+}
+
+async function saveCurrentState(data) {
+  if (await saveToDurableStore(data)) return 'kv';
+  if (REQUIRE_DURABLE_STORE) {
+    throw new Error('durable game state storage is not configured');
+  }
+  await saveToLegacyBlob(data);
+  return 'legacy-jsonblob';
 }
 
 function removeLegacySnapshotMetadata(data) {
@@ -162,30 +233,17 @@ export default async function handler(req, res) {
         return res.status(409).json({ success: false, error: 'same-day point increase write rejected' });
       }
       data.updated_at = new Date().toISOString();
-      const r = await fetch(BLOB_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!r.ok) throw new Error('blob write failed: ' + r.status);
-      return res.status(200).json({ success: true });
+      const storage = await saveCurrentState(data);
+      return res.status(200).json({ success: true, storage });
     } else {
-      const r = await fetch(BLOB_URL, {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!r.ok) return res.status(200).json({ success: false, error: 'No saved state' });
-      const data = await r.json();
-      removeLegacySnapshotMetadata(data);
+      const data = await loadCurrentState();
+      if (!data) return res.status(200).json({ success: false, error: 'No saved state' });
       const repaired = repairZeroAwardState(data);
       if (repaired) {
         data.updated_at = new Date().toISOString();
-        await fetch(BLOB_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify(data),
-        }).catch(() => {});
+        await saveCurrentState(data).catch(() => {});
       }
-      return res.status(200).json({ success: true, data });
+      return res.status(200).json({ success: true, data, storage: hasDurableStore() ? 'kv' : 'legacy-jsonblob' });
     }
   } catch (e) {
     return res.status(500).json({ success: false, error: e.message });
