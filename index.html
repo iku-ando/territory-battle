@@ -1280,6 +1280,7 @@ function render(){
       <div class="sc-name">${t.name}</div>
       <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
       <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
+      <div class="sc-row"><span>今日の会話量</span><span>${t.talkMins||0}分</span></div>
       <div class="sc-row"><span>持ち越し</span><span>${t.talkCarry||t.carry||0}分</span></div>
       <div class="sc-row"><span>総会話量</span><span>${t.talkTotal||0}分</span></div>
     </div>`).join('');
