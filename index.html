@@ -374,6 +374,7 @@ const CHEER_TEMPLATES=[
 ];
 const PT_PER=80; // 80分で1pt
 const ACTIVE_TIMEOUT_MS=60000;
+const LATEST_TALK_REFRESH_MS=3*60*60*1000;
 const API_ORIGIN=location.protocol==='file:'?'https://territory-battle-seven.vercel.app':'';
 const API_BASE=API_ORIGIN+'/api/stats';
 const GROUP_IDS=['group1','group2','group3','group4'];
@@ -478,6 +479,29 @@ async function checkAndAwardDaily(){
   if(_gameReady) showLoginAwardNotif();
 }
 
+function latestTalkDate(){
+  return prevBusinessDay(getAwardDate());
+}
+
+function displayTalkMinutes(i, team){
+  return latestTalkTargetDate===latestTalkDate()&&latestTalkMins[i]!==undefined
+    ? latestTalkMins[i]
+    : (team.talkMins||0);
+}
+
+async function refreshLatestTalkMinutes(force=false){
+  if(!G.board||!G.board.length) return false;
+  const targetDate=latestTalkDate();
+  if(!force&&latestTalkTargetDate===targetDate&&Date.now()-latestTalkLastFetchedAt<LATEST_TALK_REFRESH_MS) return false;
+  const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
+  if(results.some(r=>r===null)) return false;
+  latestTalkMins=results;
+  latestTalkTargetDate=targetDate;
+  latestTalkLastFetchedAt=Date.now();
+  render();
+  return true;
+}
+
 function getAwardDate(){
   return G.gameDate||G.lastDate||today();
 }
@@ -493,6 +517,9 @@ let myActiveSince=0; // この端末が操作権を取った時刻
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
 let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
+let latestTalkMins=[];
+let latestTalkTargetDate='';
+let latestTalkLastFetchedAt=0;
 
 function initG(members, startDate, gameEnd, passwords){
   G.board=Array.from({length:ROWS},()=>Array(COLS).fill(-1));
@@ -1280,7 +1307,7 @@ function render(){
       <div class="sc-name">${t.name}</div>
       <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
       <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
-      <div class="sc-row"><span>今日の会話量</span><span>${t.talkMins||0}分</span></div>
+      <div class="sc-row"><span>今日の会話量</span><span>${displayTalkMinutes(i,t)}分</span></div>
       <div class="sc-row"><span>持ち越し</span><span>${t.talkCarry||t.carry||0}分</span></div>
       <div class="sc-row"><span>総会話量</span><span>${t.talkTotal||0}分</span></div>
     </div>`).join('');
@@ -1748,6 +1775,7 @@ function showSpectatorLoadFallback(){
     endGameIfNeeded('', true);
     await checkAndAwardDaily();
     render();
+    refreshLatestTalkMinutes(true);
     finishBootLoading(true);
     requestAnimationFrame(initSearchlights);
   } else {
@@ -1803,6 +1831,7 @@ async function tickDateChange(){
   }
 }
 setInterval(tickDateChange, 1000);
+setInterval(()=>refreshLatestTalkMinutes(false), LATEST_TALK_REFRESH_MS);
 setInterval(async()=>{
   await expireActiveTeamIfNeeded();
   updateTurnBox();
