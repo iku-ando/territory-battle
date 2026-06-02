@@ -65,6 +65,10 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 
 /* 隣接ヒント */
 .cell.adjacent-hint{outline:1px dashed rgba(255,255,255,0.3);outline-offset:-1px;}
+.cell.locked-today{filter:grayscale(.35) brightness(.72);cursor:not-allowed;}
+.cell.locked-today:hover{filter:grayscale(.35) brightness(.82);}
+.cell.locked-today::before{content:'🔒';position:absolute;right:3px;bottom:2px;font-size:9px;z-index:6;pointer-events:none;filter:drop-shadow(0 0 2px #000);}
+.cell.locked-today.adjacent-hint{outline:1px dashed rgba(170,170,170,.45);}
 
 /* ドットキャラSVG共通 */
 .fan-svg{position:absolute;top:0;left:0;width:46px;height:46px;image-rendering:pixelated;}
@@ -542,6 +546,7 @@ function initG(members, startDate, gameEnd, passwords){
   G.activeTeam=-1; // 現在ログイン中のチーム（-1=なし）
   G.activeSince=0; // 操作権を取った時刻。小さい方を優先する
   G.bonus={};
+  G.claimedOn={}; // その日に取得されたマス。翌日まで他チームの上書き・空白化を防ぐ
   G.gameDate=startDate; // ゲーム上の現在日。この日の直前平日分をPT付与する。
   G.lastDate=startDate; // 旧データ互換
   G.lastRealDate=today(); // 本番運用で実日付の切り替わりを検知する
@@ -637,6 +642,7 @@ function sanitizeLoadedGame(){
   if(G.gameEnd===undefined) G.gameEnd=G.endDate||'';
   if(G.activeTeam===undefined) G.activeTeam=-1;
   if(G.activeSince===undefined) G.activeSince=0;
+  if(!G.claimedOn) G.claimedOn={};
   if(G.debugMode===undefined) G.debugMode=false;
   G.teams&&G.teams.forEach((t,i)=>{
     t.name=TNAME[i]; // 常に最新チーム名で上書き
@@ -665,6 +671,14 @@ function sanitizeLoadedGame(){
     G.bonus={};
     genBonusPos().forEach(([r,c])=>{if(G.board[r][c]===-1)G.bonus[r+','+c]=-1;});
   }
+}
+
+function cellLockedTodayByOther(r,c){
+  if(!G.claimedOn) return false;
+  const own=G.board&&G.board[r]&&G.board[r][c];
+  if(own===-1||own===myTeam) return false;
+  const claim=G.claimedOn[r+','+c];
+  return !!(claim&&claim.date===getAwardDate()&&claim.team!==myTeam);
 }
 
 function fillCorners(){
@@ -1031,6 +1045,7 @@ async function clickCell(r,c){
   // 自分の陣地・範囲外チェック
   const own=G.board[r][c];
   if(own===myTeam){setMsg('自分の陣地！');return;}
+  if(cellLockedTodayByOther(r,c)){setMsg('今日取得されたマスは明日まで操作できません');return;}
   if(!isAdjacent(r,c)){setMsg('隣接マスのみ操作可！');return;}
 
   const empty=own===-1;
@@ -1384,6 +1399,7 @@ function render(){
       const key=r+','+c;
       const isBonus=G.bonus.hasOwnProperty(key)||START_CELLS.has(key);
       const isStart=START_CELLS.has(key);
+      const lockedToday=cellLockedTodayByOther(r,c);
       const cell=document.createElement('div');
       let cls='cell';
       if(own===-1) cls+=' empty';
@@ -1391,6 +1407,7 @@ function render(){
       if(isBonus) cls+=' bonus';
       if(isStart) cls+=' first-fan';
       if(adj.has(r*COLS+c)&&own!==myTeam) cls+=' adjacent-hint';
+      if(lockedToday) cls+=' locked-today';
       if(pendingCells.some(p=>p.r===r&&p.c===c)) cls+=' selected';
       cell.className=cls;
       makeFanCell(cell, own, isBonus);
@@ -1714,9 +1731,12 @@ document.getElementById('multiOk').addEventListener('click',()=>{
         G.teams[myTeam].pts-=p.cost;
         if(p.action==='clear'){
           G.board[p.r][p.c]=-1;
+          if(G.claimedOn) delete G.claimedOn[p.r+','+p.c];
           if(G.bonus.hasOwnProperty(p.r+','+p.c)) G.bonus[p.r+','+p.c]=-1;
         }else{
           G.board[p.r][p.c]=myTeam;
+          G.claimedOn=G.claimedOn||{};
+          G.claimedOn[p.r+','+p.c]={date:getAwardDate(),team:myTeam};
           if(p.isBonus){G.bonus[p.r+','+p.c]=myTeam; G.teams[myTeam].pts+=3;}
           captured.push(p);
         }
