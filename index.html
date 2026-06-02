@@ -123,6 +123,9 @@ h1{font-family:'Press Start 2P',monospace;font-size:16px;margin-bottom:20px;lett
 #multiInfo{opacity:.85;}
 #multiCancel{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:11px;padding:4px 10px;cursor:pointer;}
 #multiOk{background:#5b4ef5;border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;cursor:pointer;font-family:'Syne',sans-serif;}
+.cell-action-choices{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+.cell-action-choices button{min-width:118px;}
+.cell-action-note{font-size:11px;color:#aaa;line-height:1.7;}
 
 /* レジェンド */
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#aaa;align-items:center;}
@@ -515,7 +518,7 @@ let G={};
 let myTeam=-1; // ログイン中のチーム（-1=観戦モード）
 let myActiveSince=0; // この端末が操作権を取った時刻
 let _gameReady=false; // ログイン完了後にtrue（起動時の誤通知防止用）
-let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus}]
+let pendingCells=[]; // 複数選択中のマス [{r,c,cost,isBonus,action}]
 let _saveChain=Promise.resolve(); // 古い保存が後から到着して状態を巻き戻すのを防ぐ
 let latestTalkMins=[];
 let latestTalkTargetDate='';
@@ -746,8 +749,8 @@ function isAdjacent(r,c){
     const nr=r+dr,nc=c+dc;
     if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
       if(G.board[nr][nc]===team) return true;
-      // 選択済みマスも自陣として連鎖判定
-      if(pendingCells.some(p=>p.r===nr&&p.c===nc)) return true;
+      // 取得予定マスだけ自陣として連鎖判定。空白化予定マスは自陣扱いしない。
+      if(pendingCells.some(p=>p.r===nr&&p.c===nc&&p.action!=='clear')) return true;
     }
   }
   return false;
@@ -757,7 +760,7 @@ function adjacentSet(){
   const team=myTeam>=0?myTeam:G.cur;
   const s=new Set();
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
-    const isPending=pendingCells.some(p=>p.r===r&&p.c===c);
+    const isPending=pendingCells.some(p=>p.r===r&&p.c===c&&p.action!=='clear');
     if(G.board[r][c]===team||isPending){
       for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
         const nr=r+dr,nc=c+dc;
@@ -924,11 +927,15 @@ function lockAndConfirm(title, body, onOk){
   },{once:true});
 }
 
-// 選択マスの中で孤立したものを除去（自陣or他の選択マス経由で到達不能なもの）
+// 選択マスの中で孤立したものを除去（自陣or取得予定マス経由で到達不能なもの）
 function pruneOrphanedPending(){
   const DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
-  // BFS: reachableを反復拡張して連鎖到達できるpendingだけ残す
+  // BFS: 空白化予定マスは到達対象にはなるが、その先へ連鎖する起点にはしない。
   const reachable=new Set();
+  const sources=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(G.board[r][c]===myTeam) sources.add(r+','+c);
+  }
   let changed=true;
   while(changed){
     changed=false;
@@ -938,8 +945,11 @@ function pruneOrphanedPending(){
       for(const[dr,dc]of DIRS){
         const nr=p.r+dr, nc=p.c+dc;
         if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
-        if(G.board[nr][nc]===myTeam||reachable.has(nr+','+nc)){
-          reachable.add(key); changed=true; break;
+        if(sources.has(nr+','+nc)){
+          reachable.add(key);
+          if(p.action!=='clear') sources.add(key);
+          changed=true;
+          break;
         }
       }
     }
@@ -952,14 +962,58 @@ function updateMultiBar(){
   const bar=document.getElementById('multiConfirmBar');
   if(!pendingCells.length){ bar.style.display='none'; return; }
   const totalCost=pendingCells.reduce((s,p)=>s+p.cost,0);
-  const bonusGain=pendingCells.filter(p=>p.isBonus).length*3;
+  const bonusGain=pendingCells.filter(p=>p.action!=='clear'&&p.isBonus).length*3;
   const net=totalCost-bonusGain;
   const rem=G.teams[myTeam].pts-net;
+  const clearCnt=pendingCells.filter(p=>p.action==='clear').length;
+  const captureCnt=pendingCells.length-clearCnt;
   let infoText=pendingCells.length+'マス選択中 / 消費 '+totalCost+' PT';
+  if(captureCnt&&clearCnt) infoText+='（取得 '+captureCnt+' / 空白化 '+clearCnt+'）';
+  else if(clearCnt) infoText+='（空白化）';
   if(bonusGain>0) infoText+=' / ★+'+bonusGain+' PT';
   infoText+='（残り '+rem+' PT）';
   document.getElementById('multiInfo').textContent=infoText;
   bar.style.display='flex';
+}
+
+function addPendingCell(r,c,cost,action,isBonus){
+  const usedPts=pendingCells.reduce((s,p)=>s+p.cost,0);
+  if(G.teams[myTeam].pts < usedPts+cost){
+    setMsg('ポイント不足（必要'+cost+'pt）'); return false;
+  }
+  pendingCells.push({r,c,cost,isBonus,action});
+  updateMultiBar(); render();
+  return true;
+}
+
+function showOpponentCellActionChoice(){
+  return new Promise(resolve=>{
+    const ov=document.getElementById('confirmOv');
+    const title=document.getElementById('confTitle');
+    const body=document.getElementById('confBody');
+    const ok=document.getElementById('confOk');
+    const cancel=document.getElementById('confCancel');
+    title.style.color='';
+    title.textContent='相手マスをどうする？';
+    body.innerHTML=
+      '<div class="cell-action-note">1PTで空白化、2PTで自分のマスとして奪取できます。</div>'
+      +'<div class="cell-action-choices">'
+      +'<button class="btn-sm" id="cellClearChoice" style="padding:10px 12px;">1PT 空白化</button>'
+      +'<button class="btn-main" id="cellCaptureChoice" style="padding:10px 12px;">2PT 奪取 ▶</button>'
+      +'</div>';
+    ok.style.display='none';
+    cancel.style.display='';
+    ov.classList.add('show');
+    const close=(choice)=>{
+      ov.classList.remove('show');
+      ok.style.display='';
+      body.innerHTML='';
+      resolve(choice);
+    };
+    document.getElementById('cellClearChoice').onclick=()=>close('clear');
+    document.getElementById('cellCaptureChoice').onclick=()=>close('capture');
+    cancel.onclick=()=>{setMsg('キャンセルした'); close(null);};
+  });
 }
 
 // --- マスクリック（複数選択モード）---
@@ -977,20 +1031,27 @@ async function clickCell(r,c){
   // 自分の陣地・範囲外チェック
   const own=G.board[r][c];
   if(own===myTeam){setMsg('自分の陣地！');return;}
-  if(!isAdjacent(r,c)){setMsg('隣接マスのみ取得可！');return;}
+  if(!isAdjacent(r,c)){setMsg('隣接マスのみ操作可！');return;}
 
   const empty=own===-1;
   const isBonus=G.bonus.hasOwnProperty(r+','+c)||START_CELLS.has(r+','+c);
-  const cost=empty?1:2;
-
-  // ポイント不足チェック（選択済み分も含む）
-  const usedPts=pendingCells.reduce((s,p)=>s+p.cost,0);
-  if(G.teams[myTeam].pts < usedPts+cost){
-    setMsg('ポイント不足（必要'+cost+'pt）'); return;
+  if(empty){
+    addPendingCell(r,c,1,'capture',isBonus);
+    return;
   }
 
-  pendingCells.push({r,c,cost,isBonus});
-  updateMultiBar(); render();
+  const usedPts=pendingCells.reduce((s,p)=>s+p.cost,0);
+  const available=G.teams[myTeam].pts-usedPts;
+  if(available<1){
+    setMsg('ポイント不足（必要1pt）'); return;
+  }
+  if(available>=2){
+    const choice=await showOpponentCellActionChoice();
+    if(!choice) return;
+    addPendingCell(r,c,choice==='capture'?2:1,choice,isBonus);
+    return;
+  }
+  addPendingCell(r,c,1,'clear',isBonus);
 }
 
 function setMsg(t){document.getElementById('msg').textContent=t;}
@@ -1631,34 +1692,48 @@ document.getElementById('multiCancel').addEventListener('click',()=>{
 document.getElementById('multiOk').addEventListener('click',()=>{
   if(!pendingCells.length) return;
   const totalCost=pendingCells.reduce((s,p)=>s+p.cost,0);
-  const bonusCnt=pendingCells.filter(p=>p.isBonus).length;
+  const clearCnt=pendingCells.filter(p=>p.action==='clear').length;
+  const captureCnt=pendingCells.length-clearCnt;
+  const bonusCnt=pendingCells.filter(p=>p.action!=='clear'&&p.isBonus).length;
   const bonusGain=bonusCnt*3;
   const net=totalCost-bonusGain;
-  const cellsDesc=pendingCells.length+'マスを取得';
+  const cellsDesc=[
+    captureCnt?captureCnt+'マスを取得':'',
+    clearCnt?clearCnt+'マスを空白化':''
+  ].filter(Boolean).join(' / ');
   const body=cellsDesc+' / 消費: <strong>'+totalCost+' PT</strong>'
     +(bonusCnt?'<br><span style="color:#ffcc22">★コアファン +'+bonusGain+'PT獲得！（実質'+net+'PT）</span>':'');
   lockAndConfirm(
     pendingCells.length+'マスを確定する？',
     body,
     async ()=>{
-      const captured=[...pendingCells];
+      const selected=[...pendingCells];
       pendingCells=[];
-      captured.forEach(p=>{
-        G.board[p.r][p.c]=myTeam;
+      const captured=[];
+      selected.forEach(p=>{
         G.teams[myTeam].pts-=p.cost;
-        if(p.isBonus){G.bonus[p.r+','+p.c]=myTeam; G.teams[myTeam].pts+=3;}
+        if(p.action==='clear'){
+          G.board[p.r][p.c]=-1;
+          if(G.bonus.hasOwnProperty(p.r+','+p.c)) G.bonus[p.r+','+p.c]=-1;
+        }else{
+          G.board[p.r][p.c]=myTeam;
+          if(p.isBonus){G.bonus[p.r+','+p.c]=myTeam; G.teams[myTeam].pts+=3;}
+          captured.push(p);
+        }
       });
       G.pending=null;
-      const msg=captured.length+'マス取得！（'+net+'pt消費'+(bonusCnt?'、ボーナス+'+bonusGain+'pt':'')+')';
+      const msg=cellsDesc+'！（'+net+'pt消費'+(bonusCnt?'、ボーナス+'+bonusGain+'pt':'')+')';
       setMsg(msg);
       updateMultiBar();
       render();
       const saved=await save();
       if(!saved||!saved.success) return;
       const hasBonus=captured.some(p=>p.isBonus);
-      showBannerEffect(myTeam, hasBonus, captured.length, net);
-      captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
-      setTimeout(()=>showFanCheersWhenBoardClear(captured, myTeam), 2100);
+      if(captured.length){
+        showBannerEffect(myTeam, hasBonus, captured.length, net);
+        captured.forEach(p=>showCaptureEffect(p.r,p.c,myTeam,p.isBonus));
+        setTimeout(()=>showFanCheersWhenBoardClear(captured, myTeam), 2100);
+      }
     }
   );
 });
