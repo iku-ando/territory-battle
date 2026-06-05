@@ -181,7 +181,6 @@ function normalizeGameState(data, current) {
   }
   data.awardedDates = data.awardedDates || {};
   if (data.lastAwardDate) data.awardedDates[data.lastAwardDate] = true;
-  repairZeroAwardState(data);
   return data;
 }
 
@@ -235,6 +234,18 @@ function isInvalidDateWrite(data, current) {
   const sameGame = current && current.gameStart === data.gameStart;
   const currentGameDate = current && (current.gameDate || current.debugDate || current.lastDate);
   return sameGame && currentGameDate && data.lastAwardDate !== currentGameDate;
+}
+
+function isStaleBaseWrite(data, current) {
+  if (!data || data._reset || !data.board || !data.teams || !current || !current.board || !current.teams) {
+    return false;
+  }
+  if (data._restoreBackup) return false;
+  if (data.gameStart && current.gameStart && data.gameStart !== current.gameStart) return false;
+  const currentUpdatedAt = current.updated_at || '';
+  if (!currentUpdatedAt) return false;
+  const baseUpdatedAt = data._baseUpdatedAt || data.updated_at || '';
+  return !baseUpdatedAt || baseUpdatedAt !== currentUpdatedAt;
 }
 
 function isPointRollbackWrite(data, current) {
@@ -301,6 +312,9 @@ export default async function handler(req, res) {
       if (isInvalidDateWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'stale or invalid game-date write rejected' });
       }
+      if (isStaleBaseWrite(data, current)) {
+        return res.status(409).json({ success: false, error: 'stale game-state write rejected' });
+      }
       normalizeGameState(data, current);
       if (isPointRollbackWrite(data, current)) {
         return res.status(409).json({ success: false, error: 'point rollback write rejected' });
@@ -311,7 +325,7 @@ export default async function handler(req, res) {
       data.updated_at = new Date().toISOString();
       await createHourlyBackupIfNeeded(current, data).catch(() => {});
       const storage = await saveCurrentState(data);
-      return res.status(200).json({ success: true, storage });
+      return res.status(200).json({ success: true, storage, updated_at: data.updated_at });
     } else {
       if (req.query && req.query.backups === '1') {
         const backups = await loadBackupList();
@@ -319,11 +333,6 @@ export default async function handler(req, res) {
       }
       const data = await loadCurrentState();
       if (!data) return res.status(200).json({ success: false, error: 'No saved state' });
-      const repaired = repairZeroAwardState(data);
-      if (repaired) {
-        data.updated_at = new Date().toISOString();
-        await saveCurrentState(data).catch(() => {});
-      }
       return res.status(200).json({ success: true, data, storage: hasDurableStore() ? 'kv' : 'legacy-jsonblob' });
     }
   } catch (e) {

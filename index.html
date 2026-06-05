@@ -694,29 +694,41 @@ const API_URL=API_ORIGIN+'/api/game-state';
 function save(){
   // ローカルタイムスタンプを付与（同期判定用）
   G._savedAt = Date.now();
-  const payload=JSON.stringify(G);
   // localStorageにも控える
   try{
-    localStorage.setItem('tb3',payload);
+    localStorage.setItem('tb3',JSON.stringify(G));
     localStorage.setItem('tb3_myTeam', myTeam);
   }catch(e){}
   // サーバーに保存
-  _saveChain=_saveChain.catch(()=>{}).then(()=>fetch(API_URL,{
+  _saveChain=_saveChain.catch(()=>{}).then(()=>{
+    G._baseUpdatedAt = G.updated_at || G._serverUpdatedAt || '';
+    G._savedAt = Date.now();
+    const payload=JSON.stringify(G);
+    try{
+      localStorage.setItem('tb3',payload);
+      localStorage.setItem('tb3_myTeam', myTeam);
+    }catch(e){}
+    return fetch(API_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:payload
-    }).then(async r=>{
+    });
+  }).then(async r=>{
       // サーバーが返したupdated_atを記録
       try{
         const d=await r.json();
         if(!r.ok||!d.success) throw new Error((d&&d.error)||'save failed');
+        if(d.updated_at){
+          G.updated_at=d.updated_at;
+          G._serverUpdatedAt=d.updated_at;
+          localStorage.setItem('tb3',JSON.stringify(G));
+        }
         return d;
       }catch(e){
         if(!r.ok) throw e;
         return {success:true};
       }
-    })
-  ).catch(e=>{
+    }).catch(e=>{
     setMsg('⚠ 保存に失敗しました。通信状態を確認してください');
     return {success:false,error:e.message};
   });
