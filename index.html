@@ -499,6 +499,7 @@ function displayTalkMinutes(i, team){
 async function refreshLatestTalkMinutes(force=false){
   if(!G.board||!G.board.length) return false;
   const targetDate=latestTalkDate();
+  if(isWeekendDate(targetDate)) return false;
   if(!force&&latestTalkTargetDate===targetDate&&Date.now()-latestTalkLastFetchedAt<LATEST_TALK_REFRESH_MS) return false;
   const results=await Promise.all([0,1,2,3].map(i=>fetchTalkMinutes(i, targetDate)));
   if(results.some(r=>r===null)) return false;
@@ -1390,12 +1391,13 @@ function updateTurnBox(){
 
 function render(){
   if(myTeam>=0) updateBgHighlight(myTeam);
+  const showTodayTalk=!isWeekendDate(latestTalkDate());
   document.getElementById('stats').innerHTML=G.teams.map((t,i)=>`
     <div class="sc${i===myTeam?' active':''}">
       <div class="sc-name">${t.name}</div>
       <div class="sc-pts" style="color:${TCOL[i]}">${t.pts}<span style="font-size:10px;opacity:.6"> PT</span></div>
       <div class="sc-row"><span>マス数</span><span>${countTiles(i)}</span></div>
-      <div class="sc-row"><span>今日の会話量</span><span>${displayTalkMinutes(i,t)}</span></div>
+      ${showTodayTalk?`<div class="sc-row"><span>今日の会話量</span><span>${displayTalkMinutes(i,t)}</span></div>`:''}
       <div class="sc-row"><span>持ち越し</span><span>${t.talkCarry||t.carry||0}分</span></div>
       <div class="sc-row"><span>総会話量</span><span>${t.talkTotal||0}分</span></div>
     </div>`).join('');
