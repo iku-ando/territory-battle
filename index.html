@@ -472,11 +472,11 @@ function showLoginAwardNotif(){
 
 async function checkAndAwardDaily(){
   if(!G.board||!G.board.length) return;
-  if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)){
+  if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです')){
     render();
     return;
   }
-  if(enterWeekendReadOnly('土日は閲覧モードです', true)){
+  if(enterWeekendReadOnly('土日は閲覧モードです')){
     render();
     return;
   }
@@ -1918,11 +1918,11 @@ async function tickDateChange(){
         updateMultiBar();
       }
     }
-    if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです', true)){
+    if(endGameIfNeeded('ゲーム終了日を過ぎたため、閲覧モードです')){
       render();
       return;
     }
-    if(enterWeekendReadOnly('土日は閲覧モードです', true)){
+    if(enterWeekendReadOnly('土日は閲覧モードです')){
       render();
       return;
     }
